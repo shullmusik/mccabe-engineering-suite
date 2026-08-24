@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>McCabeFluidSuite — Calculadora de Mecánica de Fluidos (McCabe-Smith-Harriott)</title>
+<meta name="description" content="Suite gratuita de calculadoras de mecánica de fluidos para ingeniería química: número de Reynolds, caída de presión en tuberías (Darcy-Weisbach/Moody), NPSH disponible, velocidad terminal de partícula, fluidización mínima (Ergun) y medidores de orificio/Venturi. 100% en tu navegador.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          panel: '#0f1720',
+          panel2: '#131e29',
+          rail: '#0a1119',
+          hairline: '#22323f',
+          brass: '#10b981',
+          brassdim: '#0d8f68',
+          amber: '#f5a524',
+          crimson: '#ef4451',
+        },
+        fontFamily: {
+          sans: ['IBM Plex Sans', 'sans-serif'],
+          mono: ['IBM Plex Mono', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: #060b10;
+    background-image:
+      linear-gradient(rgba(16,185,129,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16,185,129,0.035) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .readout {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .tab-btn.active {
+    color: #0a0f14;
+    background-color: #10b981;
+    box-shadow: 0 0 0 1px #10b981, 0 6px 18px -6px rgba(16,185,129,0.6);
+  }
+  .tab-btn { transition: all .15s ease; }
+  .ad-box {
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.045) 0 10px, transparent 10px 20px);
+    border: 1px dashed #33475a;
+  }
+  .badge-pulse { animation: pulseSoft 2s ease-in-out infinite; }
+  @keyframes pulseSoft {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,81,0.45); }
+    50% { box-shadow: 0 0 0 6px rgba(239,68,81,0); }
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  .field-input:focus { outline: none; box-shadow: 0 0 0 2px #10b981; border-color: #10b981; }
+  .switch-track { transition: background-color .2s ease; }
+  .switch-knob { transition: transform .2s ease; }
+  .accordion-panel { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+  .module-pane { display: none; }
+  .module-pane.active { display: block; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+  ::selection { background: #10b981; color: #04110c; }
+  .scrollbar-thin::-webkit-scrollbar { height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #22323f; border-radius: 3px; }
+  a.kw-link { color: #34d399; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: rgba(52,211,153,0.35); }
+</style>
+</head>
+<body class="min-h-screen text-slate-200 font-sans">
+
+<!-- ============ MODAL: EXPORT INTERSTITIAL AD ============ -->
+<div id="exportModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+  <div class="bg-panel border border-hairline rounded-lg max-w-sm w-full p-5 relative">
+    <button onclick="closeExportModal()" class="absolute top-3 right-3 text-slate-500 hover:text-slate-200 text-xl leading-none">&times;</button>
+    <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-3">Publicidad</p>
+    <div class="ad-box h-64 w-full rounded flex items-center justify-center text-slate-500 text-xs uppercase tracking-widest">ANUNCIO · 300x250</div>
+    <button onclick="proceedExport()" id="proceedExportBtn" class="mt-4 w-full bg-brass hover:bg-brassdim text-[#04110c] font-semibold text-sm py-2.5 rounded transition-colors">Continuar y descargar PDF</button>
+  </div>
+</div>
+
+<!-- ============ HEADER ============ -->
+<header class="sticky top-0 z-40 bg-rail/95 backdrop-blur border-b border-hairline">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded bg-brass/10 border border-brass/40 flex items-center justify-center">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.6"><path d="M4 12c2-4 4-6 8-6s6 2 8 6c-2 4-4 6-8 6s-6-2-8-6z"/><circle cx="12" cy="12" r="2.2"/></svg>
+      </div>
+      <div>
+        <h1 class="font-semibold text-slate-100 leading-tight text-sm sm:text-base">McCabe<span class="text-brass">Fluid</span>Suite</h1>
+        <p class="text-[10px] sm:text-xs text-slate-500 leading-tight -mt-0.5">Mecánica de fluidos · McCabe–Smith–Harriott</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 sm:gap-3">
+      <a href="index.html" class="text-xs font-mono text-slate-400 hover:text-slate-100 transition-colors">INICIO</a>
+      <span id="unitLabelSI" class="text-xs font-mono text-brass hidden sm:inline">SI</span>
+      <button id="unitToggle" onclick="toggleUnitSystem()" aria-label="Cambiar sistema de unidades" class="switch-track relative w-14 h-7 rounded-full bg-panel2 border border-hairline">
+        <span id="switchKnob" class="switch-knob absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-brass block"></span>
+      </button>
+      <span id="unitLabelUS" class="text-xs font-mono text-slate-500 hidden sm:inline">USCS</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HEADER BANNER AD ============ -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+  <div class="ad-box w-full h-[70px] sm:h-[90px] rounded flex items-center justify-center text-slate-500 text-[11px] uppercase tracking-widest">ANUNCIO · 728x90 Responsivo</div>
+</div>
+
+<!-- ============ TAB NAVIGATION ============ -->
+<nav class="max-w-7xl mx-auto px-4 sm:px-6 mt-5">
+  <div class="flex gap-2 overflow-x-auto scrollbar-thin pb-2">
+    <button data-tab="m1" onclick="switchModule('m1')" class="tab-btn active shrink-0 flex items-center gap-2 px-3.5 py-2 rounded border border-hairline bg-panel text-slate-300 text-xs sm:text-sm font-medium whitespace-nowrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg>
+      Reynolds &amp; Régimen
+    </button>
+    <button data-tab="m2" onclick="switchModule('m2')" class="tab-btn shrink-0 flex items-center gap-2 px-3.5 py-2 rounded border border-hairline bg-panel text-slate-300 text-xs sm:text-sm font-medium whitespace-nowrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="10" width="18" height="4" rx="1"/><path d="M7 10V7M17 10V7"/></svg>
+      Caída de Presión / Moody
+    </button>
+    <button data-tab="m3" onclick="switchModule('m3')" class="tab-btn shrink-0 flex items-center gap-2 px-3.5 py-2 rounded border border-hairline bg-panel text-slate-300 text-xs sm:text-sm font-medium whitespace-nowrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></svg>
+      Bomba &amp; NPSH<sub>a</sub>
+    </button>
+    <button data-tab="m4" onclick="switchModule('m4')" class="tab-btn shrink-0 flex items-center gap-2 px-3.5 py-2 rounded border border-hairline bg-panel text-slate-300 text-xs sm:text-sm font-medium whitespace-nowrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><path d="M12 8v10M9 21h6" stroke-dasharray="2 2"/></svg>
+      Velocidad Terminal
+    </button>
+    <button data-tab="m5" onclick="switchModule('m5')" class="tab-btn shrink-0 flex items-center gap-2 px-3.5 py-2 rounded border border-hairline bg-panel text-slate-300 text-xs sm:text-sm font-medium whitespace-nowrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="4" width="14" height="16" rx="1"/><circle cx="9" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/></svg>
+      Fluidización Mínima
+    </button>
+    <button data-tab="m6" onclick="switchModule('m6')" class="tab-btn shrink-0 flex items-center gap-2 px-3.5 py-2 rounded border border-hairline bg-panel text-slate-300 text-xs sm:text-sm font-medium whitespace-nowrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12h6M16 12h6"/><path d="M8 6h8l-3 6 3 6H8l3-6-3-6z"/></svg>
+      Orificio / Venturi
+    </button>
+  </div>
+</nav>
+
+<!-- ============ MAIN CONTENT ============ -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+  <div id="moduleHost">
+
+    <!-- ============ MODULE 1: REYNOLDS ============ -->
+    <section id="pane-m1" class="module-pane active">
+      <div class="bg-panel border border-hairline rounded-lg p-5 sm:p-6">
+        <div class="flex items-start justify-between gap-4 flex-wrap mb-1">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-100">Número de Reynolds &amp; Régimen de Flujo</h2>
+            <p class="text-sm text-slate-400 mt-1">Capítulos 3–5 · Clasificación de régimen laminar, transición o turbulento en flujo interno.</p>
+          </div>
+          <span id="m1-badge" class="badge shrink-0 text-xs font-mono font-semibold px-3 py-1.5 rounded border">—</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
+          <div class="space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Entradas</h3>
+            <div class="field-group" data-module="m1" data-field="rho" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad (ρ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m1" data-field="mu" data-qty="viscosity">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Viscosidad (μ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m1" data-field="u" data-qty="velocity">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Velocidad (u)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m1" data-field="D" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diámetro de tubería (D)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <p class="text-[11px] text-slate-500">Predeterminado: agua a 20°C en tubería de acero comercial de 2" cédula 40 (D<sub>i</sub> ≈ 52.5 mm).</p>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Lectura</h3>
+            <div class="bg-rail border border-hairline rounded-lg p-5 text-center">
+              <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-1">Número de Reynolds</p>
+              <p id="m1-re" class="readout font-mono text-4xl text-brass font-semibold">—</p>
+              <p class="text-[11px] text-slate-500 mt-1">Re = ρ·u·D / μ</p>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center text-[11px]">
+              <div class="border border-hairline rounded px-2 py-2"><p class="text-slate-500">Laminar</p><p class="text-slate-400 font-mono">Re &lt; 2100</p></div>
+              <div class="border border-hairline rounded px-2 py-2"><p class="text-slate-500">Transición</p><p class="text-slate-400 font-mono">2100–4000</p></div>
+              <div class="border border-hairline rounded px-2 py-2"><p class="text-slate-500">Turbulento</p><p class="text-slate-400 font-mono">Re &gt; 4000</p></div>
+            </div>
+            <svg id="m1-flowviz" viewBox="0 0 260 70" class="w-full border border-hairline rounded bg-rail"></svg>
+            <button onclick="exportPDF('m1','Número de Reynolds y Régimen de Flujo')" class="w-full flex items-center justify-center gap-2 bg-panel2 hover:bg-hairline border border-hairline text-slate-200 text-sm font-medium py-2.5 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              Exportar Memoria de Cálculo PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODULE 2: PRESSURE DROP / MOODY ============ -->
+    <section id="pane-m2" class="module-pane">
+      <div class="bg-panel border border-hairline rounded-lg p-5 sm:p-6">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-100">Caída de Presión en Tuberías — Darcy-Weisbach &amp; Moody</h2>
+          <p class="text-sm text-slate-400 mt-1">Capítulo 5 · Factor de fricción vía Colebrook-White, calculadora de caída de presión en tuberías (pressure drop calculator pipe).</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
+          <div class="space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Entradas</h3>
+            <div class="field-group" data-module="m2" data-field="eps" data-qty="smallLength">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Rugosidad absoluta (ε)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m2" data-field="D" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diámetro interno (D)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m2" data-field="L" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Longitud de tubería (L)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m2" data-field="Q" data-qty="flow">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Caudal (Q)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m2" data-field="rho" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad (ρ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m2" data-field="mu" data-qty="viscosity">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Viscosidad (μ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Lectura</h3>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500">Re</p>
+                <p id="m2-re" class="readout font-mono text-xl text-brass font-semibold">—</p>
+              </div>
+              <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500">f (Darcy)</p>
+                <p id="m2-f" class="readout font-mono text-xl text-brass font-semibold">—</p>
+              </div>
+              <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500">h<sub>f</sub></p>
+                <p id="m2-hf" class="readout font-mono text-xl text-brass font-semibold">—</p>
+              </div>
+              <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500">ΔP</p>
+                <p id="m2-dp" class="readout font-mono text-xl text-brass font-semibold">—</p>
+              </div>
+            </div>
+            <div class="bg-rail border border-hairline rounded-lg p-3">
+              <canvas id="moodyChart" height="210"></canvas>
+            </div>
+            <button onclick="exportPDF('m2','Caída de Presión en Tuberías — Darcy-Weisbach y Moody')" class="w-full flex items-center justify-center gap-2 bg-panel2 hover:bg-hairline border border-hairline text-slate-200 text-sm font-medium py-2.5 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              Exportar Memoria de Cálculo PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODULE 3: NPSH ============ -->
+    <section id="pane-m3" class="module-pane">
+      <div class="bg-panel border border-hairline rounded-lg p-5 sm:p-6">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-100">Dimensionamiento de Bomba Centrífuga &amp; NPSH Disponible</h2>
+          <p class="text-sm text-slate-400 mt-1">Capítulo 8 · NPSH calculator — evalúa el riesgo de cavitación comparando NPSH<sub>a</sub> contra el NPSH<sub>r</sub> del fabricante.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
+          <div class="space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Entradas</h3>
+            <div class="field-group" data-module="m3" data-field="Pa" data-qty="pressure">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Presión de succión (P<sub>a</sub>, absoluta)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m3" data-field="Pv" data-qty="pressure">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Presión de vapor (P<sub>v</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m3" data-field="Za" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Altura estática de succión (Z<sub>a</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+              <p class="text-[11px] text-slate-500 mt-1">Positivo = succión inundada (fuente sobre la bomba). Negativo = succión con elevación (levantamiento).</p>
+            </div>
+            <div class="field-group" data-module="m3" data-field="hfs" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Pérdidas por fricción en succión (h<sub>fs</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m3" data-field="rho" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad (ρ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m3" data-field="NPSHr" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>NPSH requerido por el fabricante (NPSH<sub>r</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Lectura</h3>
+            <div class="bg-rail border border-hairline rounded-lg p-5 text-center">
+              <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-1">NPSH disponible</p>
+              <p id="m3-npsha" class="readout font-mono text-4xl text-brass font-semibold">—</p>
+              <p class="text-[11px] text-slate-500 mt-1">NPSH<sub>a</sub> = (P<sub>a</sub>−P<sub>v</sub>)/(ρg) + Z<sub>a</sub> − h<sub>fs</sub></p>
+            </div>
+            <div id="m3-riskcard" class="border rounded-lg p-4 flex items-center justify-between">
+              <div>
+                <p class="text-[11px] uppercase tracking-widest text-slate-500">Margen vs. NPSH<sub>r</sub></p>
+                <p id="m3-margin" class="readout font-mono text-lg font-semibold text-slate-100">—</p>
+              </div>
+              <span id="m3-badge" class="text-xs font-mono font-semibold px-3 py-1.5 rounded border">—</span>
+            </div>
+            <p class="text-[11px] text-slate-500">Regla general de referencia: margen ≥ 1 m (o ≥ 0.6 m en sistemas bien controlados) se considera seguro; verificar siempre contra la curva NPSH<sub>r</sub> real del fabricante.</p>
+            <button onclick="exportPDF('m3','Dimensionamiento de Bomba y NPSH Disponible')" class="w-full flex items-center justify-center gap-2 bg-panel2 hover:bg-hairline border border-hairline text-slate-200 text-sm font-medium py-2.5 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              Exportar Memoria de Cálculo PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODULE 4: TERMINAL VELOCITY ============ -->
+    <section id="pane-m4" class="module-pane">
+      <div class="bg-panel border border-hairline rounded-lg p-5 sm:p-6">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-100">Velocidad Terminal de Partícula</h2>
+          <p class="text-sm text-slate-400 mt-1">Capítulo 7 · Terminal velocity particle calculator — criterio K de McCabe-Smith-Harriott para Stokes, régimen intermedio y Ley de Newton.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
+          <div class="space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Entradas</h3>
+            <div class="field-group" data-module="m4" data-field="Dp" data-qty="smallLength">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diámetro de partícula (D<sub>p</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m4" data-field="rhop" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad de partícula (ρ<sub>p</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m4" data-field="rho" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad del fluido (ρ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m4" data-field="mu" data-qty="viscosity">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Viscosidad del fluido (μ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <p class="text-[11px] text-slate-500">Predeterminado: arena sedimentando en agua a 20°C (ρ<sub>p</sub> ≈ 2650 kg/m³).</p>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Lectura</h3>
+            <div class="bg-rail border border-hairline rounded-lg p-5 text-center">
+              <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-1">Velocidad terminal</p>
+              <p id="m4-ut" class="readout font-mono text-4xl text-brass font-semibold">—</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500">Criterio K</p>
+                <p id="m4-k" class="readout font-mono text-lg text-slate-100 font-semibold">—</p>
+              </div>
+              <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500">Re<sub>p</sub></p>
+                <p id="m4-rep" class="readout font-mono text-lg text-slate-100 font-semibold">—</p>
+              </div>
+            </div>
+            <span id="m4-badge" class="inline-block text-xs font-mono font-semibold px-3 py-1.5 rounded border">—</span>
+            <div class="grid grid-cols-3 gap-2 text-center text-[10px] mt-1">
+              <div class="border border-hairline rounded px-2 py-1.5"><p class="text-slate-500">Stokes</p><p class="text-slate-400 font-mono">K &lt; 3.3</p></div>
+              <div class="border border-hairline rounded px-2 py-1.5"><p class="text-slate-500">Intermedio</p><p class="text-slate-400 font-mono">3.3–43.6</p></div>
+              <div class="border border-hairline rounded px-2 py-1.5"><p class="text-slate-500">Newton</p><p class="text-slate-400 font-mono">43.6–2360</p></div>
+            </div>
+            <button onclick="exportPDF('m4','Velocidad Terminal de Partícula')" class="w-full flex items-center justify-center gap-2 bg-panel2 hover:bg-hairline border border-hairline text-slate-200 text-sm font-medium py-2.5 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              Exportar Memoria de Cálculo PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODULE 5: MINIMUM FLUIDIZATION ============ -->
+    <section id="pane-m5" class="module-pane">
+      <div class="bg-panel border border-hairline rounded-lg p-5 sm:p-6">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-100">Fluidización Mínima</h2>
+          <p class="text-sm text-slate-400 mt-1">Capítulo 7 · Minimum fluidization velocity calculator — ecuación de Ergun resuelta como cuadrática en Re<sub>mf</sub>.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
+          <div class="space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Entradas</h3>
+            <div class="field-group" data-module="m5" data-field="Dp" data-qty="smallLength">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diámetro de partícula (D<sub>p</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m5" data-field="phis" data-qty="dimensionless">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Esfericidad (φ<sub>s</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" min="0.01" max="1" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m5" data-field="emf" data-qty="dimensionless">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Porosidad mínima de fluidización (ε<sub>mf</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" min="0.01" max="0.99" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m5" data-field="rhop" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad de partícula (ρ<sub>p</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m5" data-field="rho" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad del fluido (ρ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m5" data-field="mu" data-qty="viscosity">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Viscosidad del fluido (μ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <p class="text-[11px] text-slate-500">Predeterminado: lecho de arena fluidizado con aire.</p>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Lectura</h3>
+            <div class="bg-rail border border-hairline rounded-lg p-5 text-center">
+              <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-1">Velocidad mínima de fluidización</p>
+              <p id="m5-umf" class="readout font-mono text-4xl text-brass font-semibold">—</p>
+            </div>
+            <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500">Re<sub>mf</sub> (ecuación de Ergun)</p>
+              <p id="m5-remf" class="readout font-mono text-lg text-slate-100 font-semibold">—</p>
+            </div>
+            <svg id="m5-flowviz" viewBox="0 0 260 90" class="w-full border border-hairline rounded bg-rail"></svg>
+            <button onclick="exportPDF('m5','Fluidización Mínima — Ecuación de Ergun')" class="w-full flex items-center justify-center gap-2 bg-panel2 hover:bg-hairline border border-hairline text-slate-200 text-sm font-medium py-2.5 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              Exportar Memoria de Cálculo PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODULE 6: ORIFICE / VENTURI ============ -->
+    <section id="pane-m6" class="module-pane">
+      <div class="bg-panel border border-hairline rounded-lg p-5 sm:p-6">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-100">Medidores de Orificio / Venturi</h2>
+          <p class="text-sm text-slate-400 mt-1">Capítulo 8 · Orifice meter calculator — caudal a partir de caída de presión medida.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
+          <div class="space-y-4">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Entradas</h3>
+            <div>
+              <label class="block text-sm text-slate-300 mb-1">Tipo de medidor</label>
+              <select id="m6-meterType" onchange="onMeterTypeChange()" class="w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm text-slate-100">
+                <option value="orifice">Placa de orificio (C<sub>o</sub> ≈ 0.61)</option>
+                <option value="venturi">Tubo Venturi (C<sub>o</sub> ≈ 0.98)</option>
+              </select>
+            </div>
+            <div class="field-group" data-module="m6" data-field="D1" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diámetro de tubería (D<sub>1</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m6" data-field="D2" data-qty="length">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diámetro de orificio/garganta (D<sub>2</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m6" data-field="Co" data-qty="dimensionless">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Coeficiente de descarga (C<sub>o</sub>)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" min="0.1" max="1.2" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m6" data-field="dP" data-qty="pressure">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Diferencial de presión (ΔP)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+            <div class="field-group" data-module="m6" data-field="rho" data-qty="density">
+              <label class="flex justify-between text-sm text-slate-300 mb-1"><span>Densidad del fluido (ρ)</span><span class="unit-label font-mono text-brass text-xs"></span></label>
+              <input type="number" step="any" class="field-input w-full bg-panel2 border border-hairline rounded px-3 py-2 text-sm font-mono text-slate-100">
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs uppercase tracking-widest text-slate-500 font-semibold">Lectura</h3>
+            <div class="bg-rail border border-hairline rounded-lg p-5 text-center">
+              <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-1">Caudal volumétrico</p>
+              <p id="m6-q" class="readout font-mono text-4xl text-brass font-semibold">—</p>
+              <p class="text-[11px] text-slate-500 mt-1">Q = C<sub>o</sub>·A<sub>2</sub>·√(2ΔP / (ρ(1−β⁴)))</p>
+            </div>
+            <div class="bg-rail border border-hairline rounded-lg p-3 text-center">
+              <p class="text-[10px] uppercase tracking-widest text-slate-500">Relación de diámetros β = D₂/D₁</p>
+              <p id="m6-beta" class="readout font-mono text-lg text-slate-100 font-semibold">—</p>
+            </div>
+            <svg id="m6-flowviz" viewBox="0 0 260 80" class="w-full border border-hairline rounded bg-rail"></svg>
+            <button onclick="exportPDF('m6','Medidor de Orificio / Venturi')" class="w-full flex items-center justify-center gap-2 bg-panel2 hover:bg-hairline border border-hairline text-slate-200 text-sm font-medium py-2.5 rounded transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+              Exportar Memoria de Cálculo PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ ASIDE: SIDEBAR AD + TIPS ============ -->
+  <aside class="space-y-4 lg:sticky lg:top-24">
+    <div class="ad-box w-full h-[250px] rounded flex items-center justify-center text-slate-500 text-xs uppercase tracking-widest">ANUNCIO · 300x250</div>
+    <div class="bg-panel border border-hairline rounded-lg p-4">
+      <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-2">Nota técnica</p>
+      <p class="text-xs text-slate-400 leading-relaxed">Todos los cálculos corren localmente en tu navegador — nada se envía a un servidor. Cambia entre SI y USCS en cualquier momento; los valores se convierten automáticamente sin perder precisión.</p>
+    </div>
+  </aside>
+</main>
+
+<!-- ============ BOTTOM BANNER AD ============ -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6">
+  <div class="ad-box w-full h-[70px] sm:h-[90px] rounded flex items-center justify-center text-slate-500 text-[11px] uppercase tracking-widest">ANUNCIO · 728x90</div>
+</div>
+
+<!-- ============ SEO CONTENT ============ -->
+<section class="max-w-4xl mx-auto px-4 sm:px-6 py-14 space-y-14">
+
+  <div>
+    <h2 class="text-xl font-semibold text-slate-100 mb-3">Calculadoras de mecánica de fluidos para ingeniería química, gratis y sin registro</h2>
+    <p class="text-sm text-slate-400 leading-relaxed">
+      McCabeFluidSuite reúne en una sola herramienta las calculadoras que un estudiante o ingeniero de procesos necesita a diario para resolver operaciones unitarias de flujo de fluidos: un <a class="kw-link" href="#pane-m1">reynolds number calculator</a> para clasificar el régimen en tuberías, un <a class="kw-link" href="#pane-m2">pressure drop calculator pipe</a> basado en Darcy-Weisbach y el diagrama de Moody, un <a class="kw-link" href="#pane-m3">NPSH calculator</a> para prevenir cavitación en bombas centrífugas, un <a class="kw-link" href="#pane-m4">terminal velocity particle calculator</a> y un <a class="kw-link" href="#pane-m5">minimum fluidization velocity calculator</a> basados en el criterio K de McCabe-Smith-Harriott y la ecuación de Ergun, y un <a class="kw-link" href="#pane-m6">orifice meter calculator</a> para dimensionar placas de orificio y tubos Venturi. Todo el <em>cálculo de caída de presión en tuberías</em> y las demás rutinas corren enteramente en el navegador: sin backend, sin cuentas y con soporte simultáneo de unidades SI y USCS.
+    </p>
+  </div>
+
+  <div>
+    <h2 class="text-xl font-semibold text-slate-100 mb-5">Guía de fórmulas McCabe-Smith</h2>
+    <div class="space-y-4">
+
+      <details class="group bg-panel border border-hairline rounded-lg p-4" open>
+        <summary class="cursor-pointer text-sm font-semibold text-slate-200 flex justify-between items-center">1. Número de Reynolds <span class="text-slate-500 group-open:rotate-180 transition-transform text-xs">▾</span></summary>
+        <p class="text-xs text-slate-400 mt-3 leading-relaxed font-mono">Re = ρ·u·D / μ</p>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">El número de Reynolds compara las fuerzas inerciales contra las viscosas dentro del fluido. Por debajo de 2100 el flujo es laminar y las líneas de corriente son paralelas; por encima de 4000 domina la turbulencia con mezcla caótica; entre ambos valores existe una zona de transición donde el comportamiento es impredecible y conviene diseñar con margen de seguridad.</p>
+      </details>
+
+      <details class="group bg-panel border border-hairline rounded-lg p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-200 flex justify-between items-center">2. Darcy-Weisbach y ecuación de Colebrook-White <span class="text-slate-500 group-open:rotate-180 transition-transform text-xs">▾</span></summary>
+        <p class="text-xs text-slate-400 mt-3 leading-relaxed font-mono">h<sub>f</sub> = f·(L/D)·(u²/2g) &nbsp;&nbsp;|&nbsp;&nbsp; 1/√f = −2log₁₀(ε/3.7D + 2.51/(Re√f))</p>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">En régimen laminar el factor de fricción de Darcy es simplemente 64/Re. En régimen turbulento, la ecuación de Colebrook-White es implícita y se resuelve por iteración; esta calculadora usa la aproximación de Swamee-Jain como estimación inicial y refina el resultado por sustitución sucesiva hasta converger, el mismo enfoque que sustenta el diagrama de Moody.</p>
+      </details>
+
+      <details class="group bg-panel border border-hairline rounded-lg p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-200 flex justify-between items-center">3. NPSH disponible <span class="text-slate-500 group-open:rotate-180 transition-transform text-xs">▾</span></summary>
+        <p class="text-xs text-slate-400 mt-3 leading-relaxed font-mono">NPSH<sub>a</sub> = (P<sub>a</sub> − P<sub>v</sub>)/(ρg) ± Z<sub>a</sub> − h<sub>fs</sub></p>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">El NPSH disponible mide la energía por encima de la presión de vapor que existe en la succión de la bomba. Si cae por debajo del NPSH requerido por el fabricante (NPSH<sub>r</sub>), el líquido vaporiza localmente y colapsa dentro del rodete: cavitación, erosión prematura y pérdida de eficiencia hidráulica.</p>
+      </details>
+
+      <details class="group bg-panel border border-hairline rounded-lg p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-200 flex justify-between items-center">4. Velocidad terminal de partícula (criterio K) <span class="text-slate-500 group-open:rotate-180 transition-transform text-xs">▾</span></summary>
+        <p class="text-xs text-slate-400 mt-3 leading-relaxed font-mono">K = D<sub>p</sub>[gρ(ρ<sub>p</sub>−ρ)/μ²]<sup>1/3</sup></p>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">McCabe, Smith y Harriott proponen el parámetro adimensional K para elegir directamente la ley de sedimentación aplicable sin iterar: Stokes para K &lt; 3.3, un régimen intermedio para 3.3–43.6 y la Ley de Newton para 43.6–2360, cada una con su propia correlación cerrada para la velocidad terminal u<sub>t</sub>.</p>
+      </details>
+
+      <details class="group bg-panel border border-hairline rounded-lg p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-200 flex justify-between items-center">5. Fluidización mínima (ecuación de Ergun) <span class="text-slate-500 group-open:rotate-180 transition-transform text-xs">▾</span></summary>
+        <p class="text-xs text-slate-400 mt-3 leading-relaxed font-mono">150(1−ε<sub>mf</sub>)/(φ<sub>s</sub>²ε<sub>mf</sub>³)·Re<sub>mf</sub> + 1.75/(φ<sub>s</sub>ε<sub>mf</sub>³)·Re<sub>mf</sub>² = gD<sub>p</sub>³ρ(ρ<sub>p</sub>−ρ)/μ²</p>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">La ecuación de Ergun combina la caída de presión viscosa e inercial a través de un lecho de partículas. Igualando esa caída de presión al peso aparente del lecho se obtiene una cuadrática en Re<sub>mf</sub>, cuya raíz positiva define la velocidad superficial mínima a la que el lecho comienza a fluidizarse.</p>
+      </details>
+
+      <details class="group bg-panel border border-hairline rounded-lg p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-200 flex justify-between items-center">6. Medidores de orificio y Venturi <span class="text-slate-500 group-open:rotate-180 transition-transform text-xs">▾</span></summary>
+        <p class="text-xs text-slate-400 mt-3 leading-relaxed font-mono">Q = C<sub>o</sub>·A<sub>2</sub>·√(2ΔP / (ρ(1−β⁴))) &nbsp;&nbsp;|&nbsp;&nbsp; β = D<sub>2</sub>/D<sub>1</sub></p>
+        <p class="text-xs text-slate-400 mt-2 leading-relaxed">Ambos medidores infieren el caudal a partir de la caída de presión generada al forzar el fluido a través de una restricción. La placa de orificio es económica pero disipativa (C<sub>o</sub> ≈ 0.6); el tubo Venturi recupera casi toda la presión gracias a su perfil cónico gradual (C<sub>o</sub> ≈ 0.98), a costa de mayor longitud y costo de fabricación.</p>
+      </details>
+
+    </div>
+  </div>
+
+  <div>
+    <h2 class="text-xl font-semibold text-slate-100 mb-5">Preguntas frecuentes</h2>
+    <div id="faqList" class="space-y-2"></div>
+  </div>
+
+  <div class="border-t border-hairline pt-6">
+    <p class="text-[11px] text-slate-500 leading-relaxed">
+      <strong class="text-slate-400">Aviso legal:</strong> McCabeFluidSuite es una herramienta educativa y de verificación rápida para estudiantes y profesionales de ingeniería química. Los resultados se basan en correlaciones estándar de la literatura (McCabe, Smith &amp; Harriott, <em>Unit Operations of Chemical Engineering</em>) y no sustituyen el criterio de un ingeniero certificado, el análisis con software de proceso validado (Aspen Plus, Aspen HYSYS, EDR) ni el cumplimiento de normativas aplicables (ASME, API, ISA). Verifica siempre los resultados críticos antes de usarlos en diseño, seguridad de procesos o toma de decisiones de ingeniería.
+    </p>
+  </div>
+
+</section>
+
+<footer class="border-t border-hairline py-6">
+  <p class="text-center text-[11px] text-slate-600">McCabeFluidSuite · Herramienta educativa de código abierto en el navegador · Sin registros, sin backend</p>
+</footer>
+
+<script>
+/* =====================================================================
+   MCCABEFLUIDSUITE — CORE ENGINE
+   ===================================================================== */
+const G = 9.80665;
+
+/* ---------- Unit system ---------- */
+let unitSystem = 'SI'; // 'SI' | 'US'
+
+const UNITS = {
+  length:      { si: 'm',    us: 'ft',   siMult: 1,      usMult: 0.3048 },
+  smallLength: { si: 'mm',   us: 'in',   siMult: 0.001,  usMult: 0.0254 },
+  flow:        { si: 'm³/h', us: 'GPM',  siMult: 1,      usMult: 0.2271247 },
+  pressure:    { si: 'Pa',   us: 'psi',  siMult: 1,      usMult: 6894.76 },
+  density:     { si: 'kg/m³',us: 'lb/ft³', siMult: 1,   usMult: 16.0185 },
+  viscosity:   { si: 'Pa·s', us: 'cP',   siMult: 1,      usMult: 0.001 },
+  velocity:    { si: 'm/s',  us: 'ft/s', siMult: 1,      usMult: 0.3048 },
+  dimensionless: { si: '',  us: '',     siMult: 1,      usMult: 1 },
+};
+
+function toBase(displayValue, qty, system) {
+  const u = UNITS[qty];
+  const mult = system === 'SI' ? u.siMult : u.usMult;
+  return displayValue * mult;
+}
+function fromBase(baseValue, qty, system) {
+  const u = UNITS[qty];
+  const mult = system === 'SI' ? u.siMult : u.usMult;
+  return baseValue / mult;
+}
+function unitLabel(qty, system) {
+  const u = UNITS[qty];
+  return system === 'SI' ? u.si : u.us;
+}
+
+/* ---------- State (always stored in BASE units defined above) ---------- */
+const state = {
+  m1: { rho: 998.2, mu: 0.001002, u: 1.5, D: 0.0525 },
+  m2: { eps: 0.000045, D: 0.0525, L: 50, Q: 15, rho: 998.2, mu: 0.001002 },
+  m3: { Pa: 101325, Pv: 2339, Za: 2, hfs: 0.8, rho: 998.2, NPSHr: 3.0 },
+  m4: { Dp: 0.0002, rhop: 2650, rho: 998.2, mu: 0.001002 },
+  m5: { Dp: 0.0005, phis: 0.86, emf: 0.45, rhop: 2650, rho: 1.2, mu: 0.0000181 },
+  m6: { D1: 0.1, D2: 0.06, Co: 0.61, dP: 5000, rho: 998.2 },
+};
+
+/* ---------- Formatting ---------- */
+function fmt(value, decimals) {
+  if (decimals === undefined) decimals = 3;
+  if (value === null || value === undefined || !isFinite(value)) return '—';
+  const abs = Math.abs(value);
+  if (abs !== 0 && (abs < 0.001 || abs >= 100000)) return value.toExponential(3);
+  return value.toLocaleString('es-MX', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/* ---------- Fluid mechanics calculations ---------- */
+function colebrookF(Re, relRough) {
+  // Swamee-Jain initial guess
+  let f = 0.25 / Math.pow(Math.log10(relRough / 3.7 + 5.74 / Math.pow(Re, 0.9)), 2);
+  // fixed-point refinement of Colebrook-White
+  for (let i = 0; i < 25; i++) {
+    const rhs = -2 * Math.log10(relRough / 3.7 + 2.51 / (Re * Math.sqrt(f)));
+    const fNew = 1 / (rhs * rhs);
+    if (Math.abs(fNew - f) < 1e-10) { f = fNew; break; }
+    f = fNew;
+  }
+  return f;
+}
+
+function frictionFactor(Re, eps, D) {
+  if (Re <= 0) return NaN;
+  if (Re < 2100) return 64 / Re; // laminar, Darcy
+  const relRough = eps / D;
+  return colebrookF(Math.max(Re, 2100), relRough);
+}
+
+function reynoldsClass(Re) {
+  if (Re < 2100) return { label: 'LAMINAR', tone: 'safe' };
+  if (Re <= 4000) return { label: 'TRANSICIÓN', tone: 'warn' };
+  return { label: 'TURBULENTO', tone: 'info' };
+}
+
+function terminalVelocity(Dp, rhop, rho, mu) {
+  const dRho = rhop - rho;
+  if (Dp <= 0 || mu <= 0 || rho <= 0) return { ut: NaN, K: NaN, Rep: NaN, regime: '—' };
+  const K = Dp * Math.cbrt(G * rho * dRho / (mu * mu));
+  let ut, regime;
+  if (dRho <= 0) {
+    return { ut: 0, K, Rep: 0, regime: 'Partícula no sedimenta (ρp ≤ ρ)' };
+  }
+  if (K < 3.3) {
+    regime = 'Ley de Stokes';
+    ut = G * Dp * Dp * dRho / (18 * mu);
+  } else if (K <= 43.6) {
+    regime = 'Régimen intermedio';
+    ut = 0.153 * Math.pow(G, 0.71) * Math.pow(Dp, 1.14) * Math.pow(dRho, 0.71) / (Math.pow(rho, 0.29) * Math.pow(mu, 0.43));
+  } else if (K <= 2360) {
+    regime = "Ley de Newton";
+    ut = 1.74 * Math.sqrt(G * Dp * dRho / rho);
+  } else {
+    regime = 'Fuera de rango válido (K > 2360)';
+    ut = 1.74 * Math.sqrt(G * Dp * dRho / rho);
+  }
+  const Rep = rho * ut * Dp / mu;
+  return { ut, K, Rep, regime };
+}
+
+function minFluidizationVelocity(Dp, phis, emf, rhop, rho, mu) {
+  const dRho = rhop - rho;
+  const a = 1.75 / (phis * Math.pow(emf, 3));
+  const b = 150 * (1 - emf) / (Math.pow(phis, 2) * Math.pow(emf, 3));
+  const C = G * Math.pow(Dp, 3) * rho * dRho / (mu * mu);
+  if (dRho <= 0 || a <= 0) return { umf: NaN, Remf: NaN };
+  const Remf = (-b + Math.sqrt(b * b + 4 * a * C)) / (2 * a);
+  const umf = Remf * mu / (Dp * rho);
+  return { umf, Remf };
+}
+
+/* =====================================================================
+   MODULE RENDER / BIND
+   ===================================================================== */
+const decimalsFor = { density: 2, viscosity: 5, velocity: 4, length: 4, smallLength: 3, flow: 3, pressure: 1, dimensionless: 3 };
+
+function refreshAllInputs() {
+  document.querySelectorAll('.field-group').forEach(group => {
+    const mod = group.dataset.module, field = group.dataset.field, qty = group.dataset.qty;
+    const input = group.querySelector('input');
+    const label = group.querySelector('.unit-label');
+    const baseVal = state[mod][field];
+    const displayVal = fromBase(baseVal, qty, unitSystem);
+    input.value = roundSmart(displayVal, qty);
+    if (label) label.textContent = unitLabel(qty, unitSystem);
+  });
+}
+
+function roundSmart(v, qty) {
+  const d = decimalsFor[qty] !== undefined ? decimalsFor[qty] : 3;
+  if (!isFinite(v)) return '';
+  return Math.abs(v) < 0.001 && v !== 0 ? Number(v.toExponential(3)) : Number(v.toFixed(d));
+}
+
+function bindInputs() {
+  document.querySelectorAll('.field-group').forEach(group => {
+    const mod = group.dataset.module, field = group.dataset.field, qty = group.dataset.qty;
+    const input = group.querySelector('input');
+    input.addEventListener('input', () => {
+      const raw = parseFloat(input.value);
+      if (!isNaN(raw)) {
+        state[mod][field] = toBase(raw, qty, unitSystem);
+        computeAll();
+      }
+    });
+  });
+}
+
+function toggleUnitSystem() {
+  unitSystem = unitSystem === 'SI' ? 'US' : 'SI';
+  const knob = document.getElementById('switchKnob');
+  const track = document.getElementById('unitToggle');
+  const siLbl = document.getElementById('unitLabelSI');
+  const usLbl = document.getElementById('unitLabelUS');
+  if (unitSystem === 'US') {
+    knob.style.transform = 'translateX(28px)';
+    track.classList.add('bg-panel2');
+    siLbl.classList.remove('text-brass'); siLbl.classList.add('text-slate-500');
+    usLbl.classList.remove('text-slate-500'); usLbl.classList.add('text-brass');
+  } else {
+    knob.style.transform = 'translateX(0px)';
+    siLbl.classList.add('text-brass'); siLbl.classList.remove('text-slate-500');
+    usLbl.classList.add('text-slate-500'); usLbl.classList.remove('text-brass');
+  }
+  refreshAllInputs();
+  computeAll();
+}
+
+/* ---------- Tab switching ---------- */
+function switchModule(id) {
+  document.querySelectorAll('.module-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('pane-' + id).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="' + id + '"]').classList.add('active');
+  if (id === 'm2' && moodyChart) setTimeout(() => moodyChart.resize(), 50);
+}
+
+/* =====================================================================
+   BADGE HELPERS
+   ===================================================================== */
+const BADGE_BASE = 'inline-block shrink-0 text-xs font-mono font-semibold px-3 py-1.5 rounded border';
+function setBadge(el, label, tone) {
+  const tones = {
+    safe: 'text-brass border-brass/50 bg-brass/10',
+    warn: 'text-amber border-amber/50 bg-amber/10',
+    danger: 'text-crimson border-crimson/50 bg-crimson/10 badge-pulse',
+    info: 'text-sky-400 border-sky-400/50 bg-sky-400/10',
+  };
+  el.className = BADGE_BASE + ' ' + tones[tone];
+  el.textContent = label;
+}
+
+/* =====================================================================
+   COMPUTE — MODULE 1
+   ===================================================================== */
+function computeM1() {
+  const { rho, mu, u, D } = state.m1;
+  const Re = (rho * u * D) / mu;
+  document.getElementById('m1-re').textContent = fmt(Re, 0);
+  const cls = reynoldsClass(Re);
+  setBadge(document.getElementById('m1-badge'), cls.label + ' · Re ' + fmt(Re, 0), cls.tone === 'warn' ? 'warn' : (cls.label === 'LAMINAR' ? 'safe' : 'info'));
+  drawFlowViz('m1-flowviz', cls.label);
+  window._m1last = { Re, cls };
+}
+
+function drawFlowViz(svgId, regimeLabel) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+  const laminar = regimeLabel === 'LAMINAR';
+  const turbulent = regimeLabel === 'TURBULENTO';
+  let lines = '';
+  const ys = [14, 28, 42, 56];
+  ys.forEach((y, i) => {
+    if (laminar) {
+      lines += `<path d="M10 ${y} H250" stroke="#10b981" stroke-width="2" fill="none" opacity="${0.9 - i * 0.1}"/>`;
+    } else if (turbulent) {
+      lines += `<path d="M10 ${y} Q 60 ${y - 10 + (i % 2 ? 14 : -14)} 110 ${y} T 210 ${y} T 260 ${y}" stroke="#10b981" stroke-width="1.6" fill="none" opacity="${0.85 - i * 0.08}"/>`;
+    } else {
+      lines += `<path d="M10 ${y} Q 130 ${y + (i % 2 ? 5 : -5)} 250 ${y}" stroke="#f5a524" stroke-width="1.6" fill="none" opacity="${0.85 - i * 0.08}"/>`;
+    }
+  });
+  svg.innerHTML = `<rect x="0" y="0" width="260" height="70" fill="none"/>${lines}`;
+}
+
+/* =====================================================================
+   COMPUTE — MODULE 2 (+ Moody chart)
+   ===================================================================== */
+let moodyChart = null;
+
+function buildMoodyCurves() {
+  const relRoughSet = [0.05, 0.02, 0.01, 0.004, 0.001, 0.0004, 0.0001, 0.00001];
+  const datasets = [];
+  const nPts = 40;
+  relRoughSet.forEach((rr, idx) => {
+    const pts = [];
+    for (let i = 0; i <= nPts; i++) {
+      const logRe = Math.log10(4000) + (i / nPts) * (Math.log10(1e8) - Math.log10(4000));
+      const Re = Math.pow(10, logRe);
+      const f = colebrookF(Re, rr);
+      pts.push({ x: Re, y: f });
+    }
+    datasets.push({
+      label: 'ε/D=' + rr,
+      data: pts,
+      borderColor: 'rgba(148,163,184,0.35)',
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+      tension: 0,
+    });
+  });
+  // laminar branch
+  const lam = [];
+  for (let Re = 600; Re <= 2100; Re += 100) lam.push({ x: Re, y: 64 / Re });
+  datasets.push({ label: 'Laminar (64/Re)', data: lam, borderColor: '#38bdf8', borderWidth: 1.6, pointRadius: 0, fill: false });
+  return datasets;
+}
+
+function initMoodyChart() {
+  const ctx = document.getElementById('moodyChart');
+  const curveDatasets = buildMoodyCurves();
+  moodyChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [
+        ...curveDatasets,
+        {
+          label: 'Tu punto (Re, f)',
+          data: [],
+          type: 'scatter',
+          showLine: false,
+          backgroundColor: '#10b981',
+          borderColor: '#e7fff5',
+          borderWidth: 2,
+          pointRadius: 6,
+          pointHoverRadius: 7,
+        },
+      ],
+    },
+    options: {
+      animation: { duration: 300 },
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => c.dataset.label === 'Tu punto (Re, f)' ? `Re=${fmt(c.parsed.x,0)}, f=${fmt(c.parsed.y,4)}` : null,
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'logarithmic', min: 500, max: 1e8,
+          title: { display: true, text: 'Número de Reynolds (Re)', color: '#64748b', font: { size: 10 } },
+          ticks: { color: '#475569', font: { size: 9 } },
+          grid: { color: 'rgba(34,50,63,0.6)' },
+        },
+        y: {
+          type: 'logarithmic', min: 0.006, max: 0.12,
+          title: { display: true, text: 'Factor de fricción de Darcy (f)', color: '#64748b', font: { size: 10 } },
+          ticks: { color: '#475569', font: { size: 9 } },
+          grid: { color: 'rgba(34,50,63,0.6)' },
+        },
+      },
+    },
+  });
+}
+
+function computeM2() {
+  const { eps, D, L, Q, rho, mu } = state.m2;
+  const A = Math.PI * D * D / 4;
+  const u = (Q / 3600) / A;
+  const Re = (rho * u * D) / mu;
+  const f = frictionFactor(Re, eps, D);
+  const hf = f * (L / D) * (u * u) / (2 * G);
+  const dP = rho * G * hf;
+
+  document.getElementById('m2-re').textContent = fmt(Re, 0);
+  document.getElementById('m2-f').textContent = fmt(f, 4);
+  document.getElementById('m2-hf').textContent = fmt(fromBase(hf, 'length', unitSystem), 3) + ' ' + unitLabel('length', unitSystem);
+  document.getElementById('m2-dp').textContent = fmt(fromBase(dP, 'pressure', unitSystem), 1) + ' ' + unitLabel('pressure', unitSystem);
+
+  if (moodyChart) {
+    const userDataset = moodyChart.data.datasets[moodyChart.data.datasets.length - 1];
+    userDataset.data = [{ x: Math.max(Re, 500), y: f }];
+    moodyChart.update('none');
+  }
+  window._m2last = { Re, f, hf, dP, u, A };
+}
+
+/* =====================================================================
+   COMPUTE — MODULE 3
+   ===================================================================== */
+function computeM3() {
+  const { Pa, Pv, Za, hfs, rho, NPSHr } = state.m3;
+  const NPSHa = (Pa - Pv) / (rho * G) + Za - hfs;
+  document.getElementById('m3-npsha').textContent = fmt(fromBase(NPSHa, 'length', unitSystem), 2) + ' ' + unitLabel('length', unitSystem);
+  const margin = NPSHa - NPSHr;
+  document.getElementById('m3-margin').textContent = (margin >= 0 ? '+' : '') + fmt(fromBase(margin, 'length', unitSystem), 2) + ' ' + unitLabel('length', unitSystem);
+  const badge = document.getElementById('m3-badge');
+  const card = document.getElementById('m3-riskcard');
+  const CARD_BASE = 'border rounded-lg p-4 flex items-center justify-between';
+  card.className = CARD_BASE;
+  if (margin < 0) {
+    setBadge(badge, 'RIESGO DE CAVITACIÓN', 'danger');
+    card.classList.add('border-crimson/40');
+  } else if (margin < 1) {
+    setBadge(badge, 'MARGEN AJUSTADO', 'warn');
+    card.classList.add('border-amber/40');
+  } else {
+    setBadge(badge, 'MARGEN SEGURO', 'safe');
+    card.classList.add('border-brass/40');
+  }
+  window._m3last = { NPSHa, margin };
+}
+
+/* =====================================================================
+   COMPUTE — MODULE 4
+   ===================================================================== */
+function computeM4() {
+  const { Dp, rhop, rho, mu } = state.m4;
+  const r = terminalVelocity(Dp, rhop, rho, mu);
+  document.getElementById('m4-ut').textContent = fmt(fromBase(r.ut, 'velocity', unitSystem), 5) + ' ' + unitLabel('velocity', unitSystem);
+  document.getElementById('m4-k').textContent = fmt(r.K, 2);
+  document.getElementById('m4-rep').textContent = fmt(r.Rep, 3);
+  const badge = document.getElementById('m4-badge');
+  let tone = 'safe';
+  if (r.regime.indexOf('intermedio') !== -1 || r.regime.toLowerCase().indexOf('intermedio') !== -1) tone = 'warn';
+  if (r.regime.indexOf('Newton') !== -1) tone = 'info';
+  if (r.regime.indexOf('Fuera') !== -1 || r.regime.indexOf('no sedimenta') !== -1) tone = 'danger';
+  setBadge(badge, r.regime, tone);
+  window._m4last = r;
+}
+
+/* =====================================================================
+   COMPUTE — MODULE 5
+   ===================================================================== */
+function computeM5() {
+  const { Dp, phis, emf, rhop, rho, mu } = state.m5;
+  const r = minFluidizationVelocity(Dp, phis, emf, rhop, rho, mu);
+  document.getElementById('m5-umf').textContent = fmt(fromBase(r.umf, 'velocity', unitSystem), 5) + ' ' + unitLabel('velocity', unitSystem);
+  document.getElementById('m5-remf').textContent = fmt(r.Remf, 3);
+  const svg = document.getElementById('m5-flowviz');
+  if (svg) {
+    svg.innerHTML = `
+      <rect x="20" y="8" width="220" height="66" rx="3" fill="none" stroke="#22323f" stroke-width="1.5"/>
+      <circle cx="70" cy="55" r="3" fill="#10b981" opacity="0.9"/>
+      <circle cx="95" cy="60" r="2.5" fill="#10b981" opacity="0.8"/>
+      <circle cx="120" cy="48" r="3" fill="#10b981" opacity="0.9"/>
+      <circle cx="150" cy="58" r="2.5" fill="#10b981" opacity="0.7"/>
+      <circle cx="175" cy="46" r="3" fill="#10b981" opacity="0.9"/>
+      <circle cx="200" cy="56" r="2.5" fill="#10b981" opacity="0.8"/>
+      <circle cx="85" cy="35" r="2" fill="#f5a524" opacity="0.6"/>
+      <circle cx="160" cy="28" r="2" fill="#f5a524" opacity="0.6"/>
+      <path d="M30 74 v-66" stroke="#475569" stroke-width="1" stroke-dasharray="2 2"/>
+      <text x="128" y="82" fill="#64748b" font-size="7" text-anchor="middle" font-family="monospace">lecho fluidizado</text>
+    `;
+  }
+  window._m5last = r;
+}
+
+/* =====================================================================
+   COMPUTE — MODULE 6
+   ===================================================================== */
+function onMeterTypeChange() {
+  const type = document.getElementById('m6-meterType').value;
+  state.m6.Co = type === 'venturi' ? 0.98 : 0.61;
+  refreshAllInputs();
+  computeAll();
+}
+
+function computeM6() {
+  const { D1, D2, Co, dP, rho } = state.m6;
+  const beta = D2 / D1;
+  const A2 = Math.PI * D2 * D2 / 4;
+  const denom = 1 - Math.pow(beta, 4);
+  const Q = denom > 0 ? Co * A2 * Math.sqrt((2 * dP) / (rho * denom)) : NaN;
+  const Q_m3h = Q * 3600;
+  document.getElementById('m6-q').textContent = fmt(fromBase(Q_m3h, 'flow', unitSystem), 3) + ' ' + unitLabel('flow', unitSystem);
+  document.getElementById('m6-beta').textContent = fmt(beta, 3);
+  const svg = document.getElementById('m6-flowviz');
+  if (svg) {
+    const orificeR = 6 + beta * 20;
+    svg.innerHTML = `
+      <path d="M5 20 H255 M5 60 H255" stroke="#22323f" stroke-width="1.5"/>
+      <path d="M110 20 V${40 - orificeR} M110 60 V${40 + orificeR}" stroke="#10b981" stroke-width="3"/>
+      <path d="M150 20 V${40 - orificeR} M150 60 V${40 + orificeR}" stroke="#10b981" stroke-width="3"/>
+      <path d="M10 40 H255" stroke="#f5a524" stroke-width="1" stroke-dasharray="3 2" opacity="0.6"/>
+      <text x="130" y="14" fill="#64748b" font-size="7" text-anchor="middle" font-family="monospace">D1</text>
+      <text x="130" y="76" fill="#64748b" font-size="7" text-anchor="middle" font-family="monospace">D2 (β=${beta.toFixed(2)})</text>
+    `;
+  }
+  window._m6last = { Q_m3h, beta };
+}
+
+/* =====================================================================
+   COMPUTE ALL
+   ===================================================================== */
+function computeAll() {
+  computeM1(); computeM2(); computeM3(); computeM4(); computeM5(); computeM6();
+}
+
+/* =====================================================================
+   FAQ ACCORDION
+   ===================================================================== */
+const FAQS = [
+  { q: '¿Qué es el número de Reynolds y por qué determina el régimen de flujo?', a: 'Es un grupo adimensional (Re = ρuD/μ) que compara las fuerzas inerciales del fluido contra las viscosas. Valores bajos indican que la viscosidad domina y el flujo es ordenado (laminar); valores altos indican que la inercia domina y aparecen remolinos (turbulento). Es el primer criterio que se evalúa antes de seleccionar cualquier correlación de fricción, transferencia de calor o masa en flujo interno.' },
+  { q: '¿Cómo se calcula el factor de fricción de Darcy con Colebrook-White?', a: 'La ecuación de Colebrook-White relaciona el factor de fricción con el número de Reynolds y la rugosidad relativa de forma implícita (f aparece en ambos lados). Se resuelve por iteración: se parte de una estimación inicial (por ejemplo, la correlación explícita de Swamee-Jain) y se sustituye repetidamente hasta que el valor converge, típicamente en menos de diez iteraciones.' },
+  { q: '¿Qué es el NPSH disponible y por qué es crítico para evitar la cavitación?', a: 'El NPSH disponible (NPSHa) es la energía de presión neta, por encima de la presión de vapor del líquido, que efectivamente llega al ojo del impulsor de la bomba. Si el NPSHa cae por debajo del NPSH requerido por el fabricante (NPSHr), se forman burbujas de vapor que colapsan violentamente al entrar en la zona de alta presión, erosionando el rodete y reduciendo el rendimiento hidráulico: eso es cavitación.' },
+  { q: '¿Cuál es la diferencia entre Stokes, el régimen intermedio y la Ley de Newton?', a: 'Las tres describen la sedimentación de una partícula en un fluido, pero para distintos números de Reynolds de partícula. Stokes aplica a partículas muy pequeñas o fluidos muy viscosos (arrastre puramente viscoso); Newton aplica a partículas grandes en fluidos poco viscosos (arrastre dominado por inercia, coeficiente de arrastre aproximadamente constante); el régimen intermedio cubre la transición entre ambos comportamientos y usa una correlación empírica propia.' },
+  { q: '¿Qué representa la velocidad mínima de fluidización?', a: 'Es la velocidad superficial del fluido a la cual la caída de presión a través de un lecho de partículas iguala exactamente el peso aparente del lecho por unidad de área, momento en el que las partículas dejan de estar fijas y comienzan a comportarse como un fluido. Por debajo de esa velocidad el lecho es fijo; por encima, fluidizado.' },
+  { q: '¿Qué diferencia hay entre un medidor de orificio y un tubo Venturi?', a: 'Ambos infieren el caudal midiendo la caída de presión que provoca una restricción calibrada, pero el orificio genera una contracción abrupta (barato, compacto, pero con pérdida de presión permanente significativa) mientras que el Venturi usa una transición cónica gradual que recupera casi toda la presión aguas abajo, a cambio de mayor longitud instalada y costo.' },
+];
+
+function renderFAQ() {
+  const container = document.getElementById('faqList');
+  container.innerHTML = FAQS.map((item, i) => `
+    <div class="bg-panel border border-hairline rounded-lg overflow-hidden">
+      <button onclick="toggleFAQ(${i})" class="w-full text-left px-4 py-3 flex items-center justify-between gap-3">
+        <span class="text-sm text-slate-200 font-medium">${item.q}</span>
+        <span id="faq-icon-${i}" class="text-slate-500 text-xs shrink-0 transition-transform">▾</span>
+      </button>
+      <div id="faq-panel-${i}" class="accordion-panel px-4">
+        <p class="text-xs text-slate-400 leading-relaxed pb-4">${item.a}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleFAQ(i) {
+  const panel = document.getElementById('faq-panel-' + i);
+  const icon = document.getElementById('faq-icon-' + i);
+  const isOpen = panel.style.maxHeight && panel.style.maxHeight !== '0px';
+  document.querySelectorAll('.accordion-panel').forEach(p => p.style.maxHeight = '0px');
+  document.querySelectorAll('[id^="faq-icon-"]').forEach(ic => ic.style.transform = 'rotate(0deg)');
+  if (!isOpen) {
+    panel.style.maxHeight = panel.scrollHeight + 'px';
+    icon.style.transform = 'rotate(180deg)';
+  }
+}
+
+/* =====================================================================
+   PDF EXPORT
+   ===================================================================== */
+let pendingExport = null;
+
+function exportPDF(moduleId, title) {
+  pendingExport = { moduleId, title };
+  document.getElementById('exportModal').classList.remove('hidden');
+  document.getElementById('exportModal').classList.add('flex');
+}
+function closeExportModal() {
+  pendingExport = null;
+  document.getElementById('exportModal').classList.add('hidden');
+  document.getElementById('exportModal').classList.remove('flex');
+}
+
+async function proceedExport() {
+  if (!pendingExport) return;
+  const btn = document.getElementById('proceedExportBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Generando PDF…';
+  btn.disabled = true;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const marginX = 48;
+    let y = 56;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 34);
+    doc.text('McCabeFluidSuite — Memoria de Cálculo', marginX, y);
+    y += 20;
+    doc.setFontSize(12);
+    doc.setTextColor(16, 150, 100);
+    doc.text(pendingExport.title, marginX, y);
+    y += 16;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(marginX, y, 548, y);
+    y += 18;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    const now = new Date();
+    doc.text('Generado: ' + now.toLocaleString('es-MX') + '  ·  Sistema de unidades: ' + unitSystem, marginX, y);
+    y += 22;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 34);
+    doc.text('Datos de entrada', marginX, y);
+    y += 14;
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(40, 40, 40);
+
+    document.querySelectorAll('#pane-' + pendingExport.moduleId + ' .field-group').forEach(group => {
+      const labelEl = group.querySelector('label span:first-child');
+      const input = group.querySelector('input');
+      const unitEl = group.querySelector('.unit-label');
+      const line = (labelEl ? labelEl.textContent : '') + ':  ' + (input ? input.value : '') + ' ' + (unitEl ? unitEl.textContent : '');
+      doc.text(line, marginX, y);
+      y += 13;
+    });
+
+    y += 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 34);
+    doc.text('Resultados', marginX, y);
+    y += 14;
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(16, 150, 100);
+
+    document.querySelectorAll('#pane-' + pendingExport.moduleId + ' [id^="' + pendingExport.moduleId + '-"]').forEach(el => {
+      if (el.tagName === 'P' || el.tagName === 'SPAN') {
+        const txt = el.textContent.trim();
+        if (txt && txt !== '—') { doc.text(txt, marginX, y); y += 13; }
+      }
+    });
+
+    y += 10;
+    doc.setFont('helvetica', 'oblique');
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text('Constantes aplicadas: g = 9.80665 m/s². Correlaciones: McCabe, Smith & Harriott, Unit Operations of Chemical Engineering.', marginX, y, { maxWidth: 500 });
+    y += 20;
+
+    // Try to capture chart image for module 2
+    if (pendingExport.moduleId === 'm2' && moodyChart) {
+      try {
+        const imgData = moodyChart.toBase64Image();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 34);
+        doc.text('Diagrama de Moody', marginX, y);
+        y += 10;
+        doc.addImage(imgData, 'PNG', marginX, y, 500, 220);
+        y += 232;
+      } catch (e) { /* chart image optional */ }
+    }
+
+    // Try to capture the output panel visually via html2canvas for visual fidelity
+    try {
+      const outputPanel = document.querySelector('#pane-' + pendingExport.moduleId + ' .space-y-3');
+      if (outputPanel && typeof html2canvas === 'function' && y < 700) {
+        const canvas = await html2canvas(outputPanel, { backgroundColor: '#0f1720', scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = 500;
+        const imgHeight = (canvas.height / canvas.width) * imgWidth;
+        if (y + imgHeight < 780) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.setTextColor(15, 23, 34);
+          doc.text('Panel de lectura', marginX, y);
+          y += 10;
+          doc.addImage(imgData, 'PNG', marginX, y, imgWidth, imgHeight);
+        }
+      }
+    } catch (e) { /* visual capture optional, text report already complete */ }
+
+    doc.save('McCabeFluidSuite_' + pendingExport.moduleId + '_memoria.pdf');
+  } catch (err) {
+    alert('No fue posible generar el PDF en este momento. Intenta nuevamente.');
+    console.error(err);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    closeExportModal();
+  }
+}
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+window.addEventListener('DOMContentLoaded', () => {
+  bindInputs();
+  refreshAllInputs();
+  initMoodyChart();
+  computeAll();
+  renderFAQ();
+});
+</script>
+</body>
+</html>

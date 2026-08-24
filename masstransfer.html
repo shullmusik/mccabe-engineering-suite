@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Calculadora interactiva de McCabe-Thiele, Fenske-Underwood-Gilliland, Kremser, coeficientes de transferencia de masa, extracción líquido-líquido y carta psicrométrica.">
+  <meta name="keywords" content="McCabe Thiele diagram calculator, número de platos destilación, minimum reflux ratio calculator, Fenske equation calculator, Kremser equation calculator, absorption tower stages, mass transfer coefficient calculator, liquid liquid extraction stages calculator, psychrometric chart calculator online">
+  <meta name="author" content="McCabeMassSuite">
+  <meta name="theme-color" content="#0f172a">
+  <title>McCabeMassSuite — Calculadora de Transferencia de Masa y Operaciones de Separación</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root { --ink:#0f172a; --indigo:#4f46e5; --cyan:#06b6d4; --line:#dbe4f0; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#f1f5f9; color:#0f172a; }
+    .tab-btn.active { background:linear-gradient(135deg,#4338ca,#4f46e5); color:white; box-shadow:0 10px 25px rgba(79,70,229,.23); border-color:transparent; }
+    .module { display:none; }
+    .module.active { display:block; animation:enter .34s ease both; }
+    @keyframes enter { from {opacity:0; transform:translateY(7px)} to {opacity:1; transform:none} }
+    .panel { background:rgba(255,255,255,.96); border:1px solid #dbe4f0; border-radius:1rem; box-shadow:0 8px 30px rgba(15,23,42,.06); }
+    .field { display:grid; grid-template-columns:minmax(0,1fr) 88px; gap:.75rem; align-items:center; }
+    .field input[type=number], .field select, .wide-input { width:100%; border:1px solid #cbd5e1; background:#fff; border-radius:.6rem; padding:.5rem .6rem; font-size:.82rem; color:#0f172a; outline:none; }
+    .field input[type=number]:focus, .field select:focus, .wide-input:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+    input[type=range] { width:100%; height:5px; accent-color:#4f46e5; cursor:pointer; }
+    .metric { border:1px solid #dbe4f0; border-radius:.9rem; padding:.8rem; background:linear-gradient(145deg,#fff,#f8fafc); min-height:82px; }
+    .metric .value { font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+    .chart-wrap { position:relative; height:460px; }
+    .chart-wrap.short { height:360px; }
+    .ad-box { display:flex; align-items:center; justify-content:center; border:1px dashed #94a3b8; color:#64748b; background:repeating-linear-gradient(135deg,#f8fafc,#f8fafc 10px,#f1f5f9 10px,#f1f5f9 20px); letter-spacing:.24em; font-size:.68rem; font-weight:800; }
+    .memory-drawer { position:fixed; top:0; right:0; height:100vh; width:min(480px,94vw); z-index:70; background:#fff; box-shadow:-20px 0 60px rgba(15,23,42,.22); transform:translateX(103%); transition:transform .28s ease; overflow-y:auto; }
+    .memory-drawer.open { transform:translateX(0); }
+    .memory-backdrop { position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:60; opacity:0; pointer-events:none; transition:opacity .25s; }
+    .memory-backdrop.open { opacity:1; pointer-events:auto; }
+    .status-ok { color:#047857; background:#ecfdf5; border-color:#a7f3d0; }
+    .status-warn { color:#b45309; background:#fffbeb; border-color:#fde68a; }
+    .status-error { color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
+    .data-table th { position:sticky; top:0; background:#eef2ff; z-index:1; }
+    .data-table td,.data-table th { padding:.5rem .65rem; border-bottom:1px solid #e2e8f0; text-align:right; font-variant-numeric:tabular-nums; }
+    .data-table td:first-child,.data-table th:first-child { text-align:center; }
+    details > summary { list-style:none; }
+    details > summary::-webkit-details-marker { display:none; }
+    details[open] .chev { transform:rotate(180deg); }
+    .chev { transition:transform .2s; }
+    .pulse-calc { animation:pulseCalc .38s ease; }
+    @keyframes pulseCalc { 0%{box-shadow:0 0 0 0 rgba(79,70,229,.25)} 100%{box-shadow:0 0 0 12px rgba(79,70,229,0)} }
+    @media(max-width:1023px){ .chart-wrap{height:400px} }
+    @media(max-width:640px){ .chart-wrap{height:330px}.field{grid-template-columns:minmax(0,1fr) 78px} }
+    @media print { .no-print,nav,.ad-box,#memoryToggle { display:none!important; } body{background:#fff}.panel{box-shadow:none} }
+  </style>
+</head>
+<body>
+  <header class="bg-slate-950 text-white border-b border-slate-800">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-xl bg-indigo-600 grid place-items-center shadow-lg shadow-indigo-950/40" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3v18M18 3v18M4 6h4m8 0h4M6 18c4-4 8-8 12-12"/><circle cx="11" cy="13" r="1.2" fill="currentColor"/></svg>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight">McCabeMassSuite</h1>
+          <p class="text-xs sm:text-sm text-slate-400">Calculadora y gráficos interactivos de transferencia de masa</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 no-print">
+        <a href="index.html" class="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold hover:bg-slate-800 transition">Inicio</a>
+        <button id="memoryToggle" class="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold hover:bg-slate-800 transition" type="button">Memoria de cálculo</button>
+        <button id="pdfButton" class="rounded-lg bg-indigo-500 hover:bg-indigo-400 px-3 py-2 text-sm font-semibold transition flex items-center gap-2" type="button">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+          Generar Reporte de Ingeniería (PDF)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="ad-box h-[90px] max-w-[728px] mx-auto my-4" aria-label="Espacio publicitario superior">ANUNCIO · 728 × 90</div>
+
+  <div class="max-w-[1600px] mx-auto px-3 sm:px-6 pb-8">
+    <nav class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 mb-4 no-print" aria-label="Módulos de cálculo">
+      <button class="tab-btn active text-left p-3 rounded-xl border border-slate-200 bg-white transition" data-module="m1"><span class="block text-[10px] uppercase tracking-wider opacity-70">Módulo 01</span><span class="text-sm font-bold">McCabe–Thiele</span></button>
+      <button class="tab-btn text-left p-3 rounded-xl border border-slate-200 bg-white transition" data-module="m2"><span class="block text-[10px] uppercase tracking-wider opacity-70">Módulo 02</span><span class="text-sm font-bold">FUG</span></button>
+      <button class="tab-btn text-left p-3 rounded-xl border border-slate-200 bg-white transition" data-module="m3"><span class="block text-[10px] uppercase tracking-wider opacity-70">Módulo 03</span><span class="text-sm font-bold">Absorción</span></button>
+      <button class="tab-btn text-left p-3 rounded-xl border border-slate-200 bg-white transition" data-module="m4"><span class="block text-[10px] uppercase tracking-wider opacity-70">Módulo 04</span><span class="text-sm font-bold">Coeficientes k</span></button>
+      <button class="tab-btn text-left p-3 rounded-xl border border-slate-200 bg-white transition" data-module="m5"><span class="block text-[10px] uppercase tracking-wider opacity-70">Módulo 05</span><span class="text-sm font-bold">Extracción LLE</span></button>
+      <button class="tab-btn text-left p-3 rounded-xl border border-slate-200 bg-white transition" data-module="m6"><span class="block text-[10px] uppercase tracking-wider opacity-70">Módulo 06</span><span class="text-sm font-bold">Psicrometría</span></button>
+    </nav>
+
+    <main id="appRoot">
+      <!-- MODULE 1 -->
+      <section id="m1" class="module active" data-title="McCabe–Thiele">
+        <div class="grid lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <aside class="space-y-4">
+            <div class="panel p-4">
+              <div class="flex items-start justify-between gap-3 mb-4"><div><p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Destilación binaria</p><h2 class="text-lg font-bold">Parámetros de diseño</h2></div><button id="presetM1" class="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1.5 rounded-lg hover:bg-indigo-100" type="button">Benceno–Tolueno</button></div>
+              <div class="space-y-4">
+                <label class="block"><span class="text-xs font-semibold">Alimentación, z<sub>F</sub></span><div class="field mt-1"><input id="m1_zf_r" type="range" min="0.05" max="0.95" step="0.01" value="0.50"><input id="m1_zf" type="number" min="0.001" max="0.999" step="0.01" value="0.50"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Destilado, x<sub>D</sub></span><div class="field mt-1"><input id="m1_xd_r" type="range" min="0.50" max="0.995" step="0.005" value="0.95"><input id="m1_xd" type="number" min="0.01" max="0.999" step="0.005" value="0.95"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Fondos, x<sub>B</sub></span><div class="field mt-1"><input id="m1_xb_r" type="range" min="0.005" max="0.45" step="0.005" value="0.05"><input id="m1_xb" type="number" min="0.001" max="0.99" step="0.005" value="0.05"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Condición de alimentación, q</span><div class="field mt-1"><input id="m1_q_r" type="range" min="-0.5" max="1.5" step="0.05" value="1"><input id="m1_q" type="number" min="-2" max="3" step="0.05" value="1"></div><span id="m1_q_label" class="text-[11px] text-slate-500">Líquido saturado</span></label>
+                <label class="block"><span class="text-xs font-semibold">Volatilidad relativa, α</span><div class="field mt-1"><input id="m1_alpha_r" type="range" min="1.05" max="6" step="0.01" value="2.47"><input id="m1_alpha" type="number" min="1.001" max="20" step="0.01" value="2.47"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Especificación de reflujo</span><select id="m1_rmode" class="wide-input mt-1"><option value="direct">R directa</option><option value="multiple">R = k · Rmín</option></select></label>
+                <label class="block"><span id="m1_r_title" class="text-xs font-semibold">Relación de reflujo, R</span><div class="field mt-1"><input id="m1_R_r" type="range" min="0.2" max="8" step="0.05" value="2.5"><input id="m1_R" type="number" min="0.01" max="50" step="0.05" value="2.5"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Eficiencia de Murphree, E<sub>MGE</sub></span><div class="field mt-1"><input id="m1_eff_r" type="range" min="0.2" max="1" step="0.01" value="0.70"><input id="m1_eff" type="number" min="0.01" max="1" step="0.01" value="0.70"></div></label>
+              </div>
+              <div id="m1_status" class="mt-4 text-xs border rounded-lg p-2 status-ok">Modelo listo.</div>
+            </div>
+            <div class="ad-box h-[250px] w-full max-w-[300px] mx-auto" aria-label="Espacio publicitario lateral">ANUNCIO · 300 × 250</div>
+          </aside>
+          <div class="space-y-4 min-w-0">
+            <div id="m1_report" class="panel p-4 sm:p-5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><div><p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Capítulo 23 · McCabe–Smith–Harriott</p><h2 class="text-xl font-bold">McCabe Thiele diagram calculator</h2></div><span class="text-xs px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-800 border border-cyan-200">Base molar · α constante</span></div>
+              <div id="m1_metrics" class="grid grid-cols-2 xl:grid-cols-4 gap-2 mb-4">
+                <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Platos teóricos</div><div id="m1_N" class="value text-2xl font-extrabold text-indigo-700">—</div><div class="text-[10px] text-slate-500">incluye etapa fraccionaria</div></div>
+                <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Platos reales</div><div id="m1_Nreal" class="value text-2xl font-extrabold text-indigo-700">—</div><div id="m1_Nreal_note" class="text-[10px] text-slate-500">N / E<sub>MGE</sub></div></div>
+                <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Plato de alimentación</div><div id="m1_feed" class="value text-2xl font-extrabold text-cyan-700">—</div><div class="text-[10px] text-slate-500">cambio de línea operativa</div></div>
+                <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Reflujo mínimo</div><div id="m1_Rmin" class="value text-2xl font-extrabold text-cyan-700">—</div><div id="m1_Ractual" class="text-[10px] text-slate-500">R operativo —</div></div>
+              </div>
+              <div class="chart-wrap"><canvas id="chartM1" role="img" aria-label="Diagrama McCabe-Thiele con curva de equilibrio, líneas operativas y escalones"></canvas></div>
+            </div>
+            <div class="panel overflow-hidden">
+              <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between"><h3 class="font-bold">Desglose de composición por etapa</h3><span id="m1_rows" class="text-xs text-slate-500"></span></div>
+              <div class="max-h-[330px] overflow-auto"><table class="data-table w-full text-xs"><thead><tr><th>Etapa</th><th>x<sub>n</sub></th><th>y<sub>n</sub></th><th>Sección</th><th>Fracción</th></tr></thead><tbody id="m1_table"></tbody></table></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 2 -->
+      <section id="m2" class="module" data-title="Fenske–Underwood–Gilliland">
+        <div class="grid lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <aside class="panel p-4 h-fit">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Método corto de diseño</p><h2 class="text-lg font-bold mb-4">Entradas FUG</h2>
+            <div class="space-y-4">
+              <label class="block"><span class="text-xs font-semibold">x<sub>F</sub></span><div class="field mt-1"><input id="m2_xf_r" type="range" min=".02" max=".98" step=".01" value=".50"><input id="m2_xf" type="number" min=".001" max=".999" step=".01" value=".50"></div></label>
+              <label class="block"><span class="text-xs font-semibold">x<sub>D</sub></span><div class="field mt-1"><input id="m2_xd_r" type="range" min=".5" max=".995" step=".005" value=".95"><input id="m2_xd" type="number" min=".001" max=".999" step=".005" value=".95"></div></label>
+              <label class="block"><span class="text-xs font-semibold">x<sub>B</sub></span><div class="field mt-1"><input id="m2_xb_r" type="range" min=".005" max=".45" step=".005" value=".05"><input id="m2_xb" type="number" min=".001" max=".999" step=".005" value=".05"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Volatilidad relativa, α</span><div class="field mt-1"><input id="m2_alpha_r" type="range" min="1.05" max="6" step=".01" value="2.47"><input id="m2_alpha" type="number" min="1.001" max="20" step=".01" value="2.47"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Condición q</span><div class="field mt-1"><input id="m2_q_r" type="range" min="-.5" max="1.5" step=".05" value="1"><input id="m2_q" type="number" min="-2" max="3" step=".05" value="1"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Relación R/R<sub>mín</sub></span><div class="field mt-1"><input id="m2_ratio_r" type="range" min="1.01" max="3" step=".01" value="1.40"><input id="m2_ratio" type="number" min="1.001" max="10" step=".01" value="1.40"></div></label>
+            </div><div id="m2_status" class="mt-4 text-xs border rounded-lg p-2 status-ok">Modelo binario con volatilidad constante.</div>
+          </aside>
+          <div id="m2_report" class="panel p-4 sm:p-5 min-w-0">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Capítulo 23 · Diseño preliminar</p><h2 class="text-xl font-bold">minimum reflux ratio calculator · Fenske equation calculator</h2>
+            <div class="grid grid-cols-2 xl:grid-cols-5 gap-2 my-4">
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">N mínimo</div><div id="m2_Nmin" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Raíz θ</div><div id="m2_theta" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">R mínimo</div><div id="m2_Rmin" class="value text-2xl font-extrabold text-cyan-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">R operativo</div><div id="m2_R" class="value text-2xl font-extrabold text-cyan-700">—</div></div>
+              <div class="metric col-span-2 xl:col-span-1"><div class="text-[10px] uppercase font-bold text-slate-500">N teórico</div><div id="m2_N" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+            </div>
+            <div class="chart-wrap short"><canvas id="chartM2" role="img" aria-label="Curva de Gilliland con estado operativo"></canvas></div>
+            <p class="mt-3 text-xs text-slate-500">Underwood binario: α<sub>LK</sub> = α y α<sub>HK</sub> = 1. La correlación de Eduljee se aplica exactamente con la forma indicada.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 3 -->
+      <section id="m3" class="module" data-title="Torre de absorción por Kremser">
+        <div class="grid lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <aside class="space-y-4">
+            <div class="panel p-4">
+              <div class="flex justify-between gap-2"><div><p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Absorción / desorción</p><h2 class="text-lg font-bold mb-4">Entradas Kremser</h2></div><button id="presetM3" class="h-fit text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1.5 rounded-lg" type="button">NH₃–Agua</button></div>
+              <div class="space-y-4">
+                <label class="block"><span class="text-xs font-semibold">Gas de entrada, Y<sub>1</sub></span><div class="field mt-1"><input id="m3_Y1_r" type="range" min=".005" max=".3" step=".001" value=".08"><input id="m3_Y1" type="number" min=".000001" step=".001" value=".08"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Gas de salida, Y<sub>2</sub></span><div class="field mt-1"><input id="m3_Y2_r" type="range" min=".001" max=".1" step=".001" value=".005"><input id="m3_Y2" type="number" min="0" step=".001" value=".005"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Solvente de entrada, X<sub>2</sub></span><div class="field mt-1"><input id="m3_X2_r" type="range" min="0" max=".1" step=".001" value="0"><input id="m3_X2" type="number" min="0" step=".001" value="0"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Pendiente de equilibrio, m</span><div class="field mt-1"><input id="m3_m_r" type="range" min=".1" max="5" step=".05" value="1"><input id="m3_m" type="number" min=".0001" step=".05" value="1"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Gas libre de soluto, G<sub>s</sub> (kmol/h)</span><div class="field mt-1"><input id="m3_G_r" type="range" min="10" max="1000" step="5" value="100"><input id="m3_G" type="number" min=".0001" step="5" value="100"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Solvente, L<sub>s</sub> (kmol/h)</span><div class="field mt-1"><input id="m3_L_r" type="range" min="10" max="1000" step="5" value="140"><input id="m3_L" type="number" min=".0001" step="5" value="140"></div></label>
+              </div><div id="m3_status" class="mt-4 text-xs border rounded-lg p-2 status-ok">A = 1.4 en el preset.</div>
+            </div>
+            <div class="ad-box h-[250px] w-full max-w-[300px] mx-auto">ANUNCIO · 300 × 250</div>
+          </aside>
+          <div id="m3_report" class="panel p-4 sm:p-5 min-w-0">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Capítulo 24 · Etapas ideales</p><h2 class="text-xl font-bold">Kremser equation calculator · absorption tower stages</h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 my-4">
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Factor A</div><div id="m3_A" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Etapas N</div><div id="m3_N" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Etapas de diseño</div><div id="m3_Nceil" class="value text-2xl font-extrabold text-cyan-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Recuperación</div><div id="m3_rec" class="value text-2xl font-extrabold text-cyan-700">—</div></div>
+            </div>
+            <div class="chart-wrap"><canvas id="chartM3" role="img" aria-label="Líneas de operación y equilibrio de una torre de absorción"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 4 -->
+      <section id="m4" class="module" data-title="Coeficientes de transferencia de masa">
+        <div class="grid lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <aside class="panel p-4 h-fit">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Correlaciones Sherwood</p><h2 class="text-lg font-bold mb-4">Propiedades y geometría</h2>
+            <div class="space-y-4">
+              <label class="block"><span class="text-xs font-semibold">Geometría</span><select id="m4_geo" class="wide-input mt-1"><option value="tube">Tubería · Gilliland–Sherwood</option><option value="sphere">Esfera / gota · Frössling</option><option value="packed">Lecho empacado · Wakao–Funazkri</option></select></label>
+              <label class="block"><span class="text-xs font-semibold">Densidad, ρ (kg/m³)</span><div class="field mt-1"><input id="m4_rho_r" type="range" min=".5" max="1500" step=".5" value="1.2"><input id="m4_rho" type="number" min=".0001" step=".1" value="1.2"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Viscosidad, μ (Pa·s)</span><div class="field mt-1"><input id="m4_mu_r" type="range" min=".000005" max=".01" step=".000005" value=".000018"><input id="m4_mu" type="number" min="1e-9" step=".000001" value=".000018"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Difusividad, D<sub>AB</sub> (m²/s)</span><div class="field mt-1"><input id="m4_D_r" type="range" min=".000000001" max=".0001" step=".000000001" value=".00002"><input id="m4_D" type="number" min="1e-12" step=".000001" value=".00002"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Velocidad, u (m/s)</span><div class="field mt-1"><input id="m4_u_r" type="range" min=".001" max="20" step=".01" value="2"><input id="m4_u" type="number" min="0" step=".01" value="2"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Dimensión, d (m)</span><div class="field mt-1"><input id="m4_d_r" type="range" min=".0001" max="1" step=".0001" value=".025"><input id="m4_d" type="number" min="1e-9" step=".001" value=".025"></div></label>
+            </div><div id="m4_status" class="mt-4 text-xs border rounded-lg p-2 status-ok">Unidades SI coherentes.</div>
+          </aside>
+          <div id="m4_report" class="panel p-4 sm:p-5 min-w-0">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Capítulo 21 · Transporte convectivo</p><h2 class="text-xl font-bold">mass transfer coefficient calculator</h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 my-4">
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Reynolds</div><div id="m4_Re" class="value text-xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Schmidt</div><div id="m4_Sc" class="value text-xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Sherwood</div><div id="m4_Sh" class="value text-xl font-extrabold text-cyan-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">k<sub>c</sub> (m/s)</div><div id="m4_k" class="value text-xl font-extrabold text-cyan-700">—</div></div>
+            </div>
+            <div class="grid sm:grid-cols-3 gap-2 mb-4 text-center"><div class="rounded-lg bg-slate-50 border p-2"><div class="text-[10px] text-slate-500">m/s</div><strong id="m4_ms">—</strong></div><div class="rounded-lg bg-slate-50 border p-2"><div class="text-[10px] text-slate-500">cm/s</div><strong id="m4_cms">—</strong></div><div class="rounded-lg bg-slate-50 border p-2"><div class="text-[10px] text-slate-500">ft/h</div><strong id="m4_fth">—</strong></div></div>
+            <div class="chart-wrap short"><canvas id="chartM4" role="img" aria-label="Sensibilidad del coeficiente de transferencia de masa a la velocidad"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 5 -->
+      <section id="m5" class="module" data-title="Extracción líquido–líquido">
+        <div class="grid lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <aside class="panel p-4 h-fit">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">LLE contracorriente</p><h2 class="text-lg font-bold mb-4">Entradas de extracción</h2>
+            <div class="space-y-4">
+              <label class="block"><span class="text-xs font-semibold">Rafinado / alimentación, F (kmol/h)</span><div class="field mt-1"><input id="m5_F_r" type="range" min="1" max="1000" step="1" value="100"><input id="m5_F" type="number" min=".0001" step="1" value="100"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Concentración de alimentación, x<sub>F</sub></span><div class="field mt-1"><input id="m5_xF_r" type="range" min=".01" max=".8" step=".005" value=".30"><input id="m5_xF" type="number" min=".0001" max=".999" step=".005" value=".30"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Solvente, S (kmol/h)</span><div class="field mt-1"><input id="m5_S_r" type="range" min="1" max="1000" step="1" value="120"><input id="m5_S" type="number" min=".0001" step="1" value="120"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Soluto en solvente, y<sub>S</sub></span><div class="field mt-1"><input id="m5_yS_r" type="range" min="0" max=".2" step=".001" value="0"><input id="m5_yS" type="number" min="0" max=".999" step=".001" value="0"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Distribución, K = y/x</span><div class="field mt-1"><input id="m5_K_r" type="range" min=".1" max="8" step=".05" value="2.2"><input id="m5_K" type="number" min=".0001" step=".05" value="2.2"></div></label>
+              <label class="block"><span class="text-xs font-semibold">Objetivo de rafinado, x<sub>R</sub></span><div class="field mt-1"><input id="m5_xR_r" type="range" min=".001" max=".29" step=".001" value=".02"><input id="m5_xR" type="number" min="0" max=".999" step=".001" value=".02"></div></label>
+            </div><div id="m5_status" class="mt-4 text-xs border rounded-lg p-2 status-ok">Modelo diluido, flujos portadores constantes.</div>
+          </aside>
+          <div id="m5_report" class="panel p-4 sm:p-5 min-w-0">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Capítulo 26 · Método gráfico Jänecke</p><h2 class="text-xl font-bold">liquid liquid extraction stages calculator</h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 my-4">
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Factor E = KS/F</div><div id="m5_E" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Etapas teóricas</div><div id="m5_N" class="value text-2xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Etapas de diseño</div><div id="m5_Nceil" class="value text-2xl font-extrabold text-cyan-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Extracción</div><div id="m5_rec" class="value text-2xl font-extrabold text-cyan-700">—</div></div>
+            </div>
+            <div class="chart-wrap"><canvas id="chartM5" role="img" aria-label="Diagrama rectangular Jänecke con líneas de reparto y etapas de extracción"></canvas></div>
+            <div class="mt-4 overflow-auto max-h-[240px]"><table class="data-table w-full text-xs"><thead><tr><th>Etapa</th><th>x rafinado</th><th>y extracto equilibrio</th><th>x siguiente</th></tr></thead><tbody id="m5_table"></tbody></table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 6 -->
+      <section id="m6" class="module" data-title="Psicrometría y humidificación">
+        <div class="grid lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
+          <aside class="space-y-4">
+            <div class="panel p-4">
+              <div class="flex justify-between gap-2"><div><p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Aire–agua</p><h2 class="text-lg font-bold mb-4">Estado psicrométrico</h2></div><button id="presetM6" class="h-fit text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1.5 rounded-lg" type="button">A/C</button></div>
+              <div class="space-y-4">
+                <label class="block"><span class="text-xs font-semibold">Modo de entrada</span><select id="m6_mode" class="wide-input mt-1"><option value="twb">Bulbo húmedo, Tᴡʙ</option><option value="rh">Humedad relativa, %RH</option></select></label>
+                <label class="block"><span class="text-xs font-semibold">Bulbo seco, T<sub>db</sub> (°C)</span><div class="field mt-1"><input id="m6_Tdb_r" type="range" min="-5" max="60" step=".1" value="35"><input id="m6_Tdb" type="number" min="-20" max="100" step=".1" value="35"></div></label>
+                <label id="m6_twb_wrap" class="block"><span class="text-xs font-semibold">Bulbo húmedo, T<sub>wb</sub> (°C)</span><div class="field mt-1"><input id="m6_Twb_r" type="range" min="-5" max="50" step=".1" value="24"><input id="m6_Twb" type="number" min="-20" max="100" step=".1" value="24"></div></label>
+                <label id="m6_rh_wrap" class="block hidden"><span class="text-xs font-semibold">Humedad relativa, RH (%)</span><div class="field mt-1"><input id="m6_RH_r" type="range" min="1" max="100" step="1" value="45"><input id="m6_RH" type="number" min="0.1" max="100" step="1" value="45"></div></label>
+                <label class="block"><span class="text-xs font-semibold">Presión, P (kPa)</span><div class="field mt-1"><input id="m6_P_r" type="range" min="60" max="110" step=".1" value="101.325"><input id="m6_P" type="number" min="1" max="200" step=".1" value="101.325"></div></label>
+              </div><div id="m6_status" class="mt-4 text-xs border rounded-lg p-2 status-ok">Antoine: 1–100 °C recomendado.</div>
+            </div>
+            <div class="ad-box h-[250px] w-full max-w-[300px] mx-auto">ANUNCIO · 300 × 250</div>
+          </aside>
+          <div id="m6_report" class="panel p-4 sm:p-5 min-w-0">
+            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Capítulo 24 · Humidificación</p><h2 class="text-xl font-bold">psychrometric chart calculator online</h2>
+            <div class="grid grid-cols-2 xl:grid-cols-5 gap-2 my-4">
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Humedad Y</div><div id="m6_W" class="value text-xl font-extrabold text-indigo-700">—</div><div class="text-[10px] text-slate-500">kg H₂O/kg aire seco</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">RH</div><div id="m6_RHout" class="value text-xl font-extrabold text-indigo-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Punto de rocío</div><div id="m6_Tdp" class="value text-xl font-extrabold text-cyan-700">—</div></div>
+              <div class="metric"><div class="text-[10px] uppercase font-bold text-slate-500">Entalpía</div><div id="m6_H" class="value text-xl font-extrabold text-cyan-700">—</div><div class="text-[10px] text-slate-500">kJ/kg aire seco</div></div>
+              <div class="metric col-span-2 xl:col-span-1"><div class="text-[10px] uppercase font-bold text-slate-500">Volumen específico</div><div id="m6_v" class="value text-xl font-extrabold text-cyan-700">—</div><div class="text-[10px] text-slate-500">m³/kg aire seco</div></div>
+            </div>
+            <div class="chart-wrap"><canvas id="chartM6" role="img" aria-label="Carta psicrométrica con curvas de humedad relativa y punto de estado"></canvas></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="mt-8 grid lg:grid-cols-2 gap-4" aria-labelledby="theoryTitle">
+      <div class="panel p-5"><p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Fundamento técnico</p><h2 id="theoryTitle" class="text-xl font-bold mb-3">número de platos destilación y métodos de diseño</h2><p class="text-sm leading-6 text-slate-600">McCabe–Thiele resuelve gráficamente balances etapa a etapa bajo desbordamiento molar constante. Fenske fija el límite de etapas a reflujo total; Underwood estima el reflujo mínimo y Gilliland interpola la operación económica entre ambos límites.</p></div>
+      <div class="panel p-5"><p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Alcance del modelo</p><h3 class="text-lg font-bold mb-3">Supuestos que deben verificarse</h3><p class="text-sm leading-6 text-slate-600">Los resultados son de diseño conceptual. Deben validarse con equilibrio termodinámico apropiado, balances rigurosos, hidráulica, eficiencia dependiente de composición, caída de presión y datos de transporte experimentales antes de especificar equipo.</p></div>
+    </section>
+
+    <section class="mt-6 panel p-5" aria-labelledby="faqTitle">
+      <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Preguntas frecuentes</p><h2 id="faqTitle" class="text-xl font-bold mb-4">FAQ de operaciones de separación</h2>
+      <div class="divide-y divide-slate-200">
+        <details class="py-3"><summary class="cursor-pointer font-semibold flex justify-between gap-4">¿Qué calcula la ecuación de Kremser?<span class="chev">⌄</span></summary><p class="pt-2 text-sm text-slate-600 leading-6">Calcula el número de etapas ideales de absorción o desorción bajo equilibrio lineal, flujos libres de soluto aproximadamente constantes y operación en contracorriente. Su variable central es el factor de absorción A = L<sub>s</sub>/(mG<sub>s</sub>).</p></details>
+        <details class="py-3"><summary class="cursor-pointer font-semibold flex justify-between gap-4">¿Cómo se usa la eficiencia de Murphree?<span class="chev">⌄</span></summary><p class="pt-2 text-sm text-slate-600 leading-6">La eficiencia relaciona el cambio real de composición del vapor con el cambio que alcanzaría una etapa en equilibrio. Como aproximación de diseño, esta suite calcula N<sub>real</sub> = N<sub>teórico</sub>/E<sub>MGE</sub> y redondea hacia arriba para obtener un número entero de platos.</p></details>
+        <details class="py-3"><summary class="cursor-pointer font-semibold flex justify-between gap-4">¿Qué significa el factor de absorción A?<span class="chev">⌄</span></summary><p class="pt-2 text-sm text-slate-600 leading-6">A compara la capacidad del flujo líquido para transportar soluto con la pendiente de equilibrio y el flujo gaseoso. Valores A &gt; 1 suelen favorecer la absorción; cerca de A = 1, la ecuación se evalúa mediante su límite matemático para evitar indeterminación numérica.</p></details>
+        <details class="py-3"><summary class="cursor-pointer font-semibold flex justify-between gap-4">¿Qué representa la condición q de alimentación?<span class="chev">⌄</span></summary><p class="pt-2 text-sm text-slate-600 leading-6">q es la fracción de la alimentación que entra como líquido tras una expansión adiabática ideal: q = 1 líquido saturado, q = 0 vapor saturado, 0 &lt; q &lt; 1 mezcla, q &gt; 1 líquido subenfriado y q &lt; 0 vapor sobrecalentado.</p></details>
+      </div>
+    </section>
+  </div>
+
+  <div class="ad-box h-[90px] max-w-[728px] mx-auto my-6">ANUNCIO · 728 × 90</div>
+  <footer class="bg-slate-950 text-slate-300 py-8">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 grid md:grid-cols-[1fr_1.5fr] gap-6 text-xs leading-5">
+      <div><strong class="text-white text-base">McCabeMassSuite</strong><p class="mt-2">Herramientas client-side para transferencia de masa y operaciones de separación, inspiradas en McCabe–Smith–Harriott.</p></div>
+      <div><h3 class="font-bold text-white mb-2">Calculadoras técnicas</h3><p>McCabe Thiele diagram calculator · minimum reflux ratio calculator · Fenske equation calculator · Kremser equation calculator · absorption tower stages · mass transfer coefficient calculator · liquid liquid extraction stages calculator · psychrometric chart calculator online.</p></div>
+    </div>
+  </footer>
+
+  <div id="memoryBackdrop" class="memory-backdrop"></div>
+  <aside id="memoryDrawer" class="memory-drawer" aria-hidden="true" aria-labelledby="memoryTitle">
+    <div class="sticky top-0 bg-slate-950 text-white px-5 py-4 flex justify-between items-center z-10"><div><p class="text-[10px] uppercase tracking-widest text-indigo-300">Inspección paso a paso</p><h2 id="memoryTitle" class="font-bold">Memoria de cálculo</h2></div><button id="memoryClose" class="w-9 h-9 rounded-lg hover:bg-slate-800" aria-label="Cerrar memoria">✕</button></div>
+    <div id="memoryContent" class="p-5 text-sm leading-6 space-y-4"></div>
+  </aside>
+
+  <div id="pdfModal" class="fixed inset-0 bg-slate-950/80 z-[100] hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pdfModalTitle">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+      <div class="ad-box h-[250px] w-full">ANUNCIO · INTERSTITIAL</div>
+      <div class="p-5 text-center"><h2 id="pdfModalTitle" class="font-bold text-lg">Preparando reporte de ingeniería</h2><p id="pdfCountdown" class="text-sm text-slate-500 mt-1">Disponible en 3 segundos…</p><div class="mt-4 flex justify-center gap-2"><button id="pdfCancel" class="px-4 py-2 border rounded-lg text-sm font-semibold" type="button">Cancelar</button><button id="pdfSkip" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold" type="button">Saltar y generar</button></div></div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const charts = {};
+    let activeModule = 'm1';
+    const memories = {};
+    const palette = { indigo:'#4f46e5', cyan:'#06b6d4', slate:'#64748b', red:'#ef4444', amber:'#f59e0b', green:'#10b981', light:'#cbd5e1' };
+    const fmt = (v, d=4) => Number.isFinite(v) ? Number(v).toLocaleString('es-ES',{maximumFractionDigits:d,minimumFractionDigits:0}) : '—';
+    const sci = v => Number.isFinite(v) ? (Math.abs(v)<0.001 || Math.abs(v)>=100000 ? v.toExponential(4) : fmt(v,6)) : '—';
+    const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+    const pts = (fn, a=0, b=1, n=101) => Array.from({length:n},(_,i)=>{const x=a+(b-a)*i/(n-1); return {x,y:fn(x)}}).filter(p=>Number.isFinite(p.y));
+    const chartBase = (xTitle,yTitle) => ({responsive:true,maintainAspectRatio:false,animation:{duration:330,easing:'easeOutQuart'},interaction:{mode:'nearest',intersect:false},plugins:{legend:{labels:{usePointStyle:true,boxWidth:8,font:{size:10}}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: (${fmt(c.parsed.x,4)}, ${fmt(c.parsed.y,4)})`}}},scales:{x:{type:'linear',title:{display:true,text:xTitle},grid:{color:'#e2e8f0'},ticks:{font:{size:10}}},y:{title:{display:true,text:yTitle},grid:{color:'#e2e8f0'},ticks:{font:{size:10}}}}});
+    const lineDS = (label,data,color,width=2,dash=[]) => ({label,data,borderColor:color,backgroundColor:color,borderWidth:width,borderDash:dash,pointRadius:0,showLine:true,fill:false,tension:0});
+    function upsertChart(key, canvas, data, options){ if(charts[key]){charts[key].data=data; charts[key].options=options; charts[key].update();} else charts[key]=new Chart($(canvas),{type:'scatter',data,options}); }
+    function setStatus(id,msg,type='ok'){ const el=$(id); el.textContent=msg; el.className=`mt-4 text-xs border rounded-lg p-2 status-${type}`; }
+    function qLabel(q){ if(Math.abs(q-1)<1e-6)return 'Líquido saturado'; if(Math.abs(q)<1e-6)return 'Vapor saturado'; if(q>1)return 'Líquido subenfriado'; if(q<0)return 'Vapor sobrecalentado'; return 'Mezcla líquido–vapor'; }
+    function eqY(x,a){ return a*x/(1+(a-1)*x); }
+    function eqX(y,a){ return y/(a-(a-1)*y); }
+    function bindPairs(prefix, names, calc){
+      names.forEach(name=>{
+        const n=$(prefix+name), r=$(prefix+name+'_r'); if(!n||!r)return;
+        r.addEventListener('input',()=>{n.value=r.value; calc();});
+        n.addEventListener('input',()=>{let v=parseFloat(n.value); if(Number.isFinite(v)){r.value=clamp(v,parseFloat(r.min),parseFloat(r.max));calc();}});
+      });
+    }
+    function number(id){ return parseFloat($(id).value); }
+    function pulse(id){ const el=$(id); el.classList.remove('pulse-calc'); void el.offsetWidth; el.classList.add('pulse-calc'); }
+    function refreshMath(){ if(window.MathJax?.typesetPromise) MathJax.typesetPromise([$('memoryContent')]).catch(()=>{}); }
+    function setMemory(html,key=activeModule){ memories[key]=html; if($(key).classList.contains('active')){$('memoryContent').innerHTML=html; refreshMath();} }
+    function memoryCard(step,title,formula,arithmetic){ return `<section class="rounded-xl border border-slate-200 p-4"><div class="flex gap-3"><span class="shrink-0 w-7 h-7 rounded-full bg-indigo-600 text-white grid place-items-center text-xs font-bold">${step}</span><div><h3 class="font-bold">${title}</h3><div class="text-slate-700 mt-2">\\[${formula}\\]</div>${arithmetic?`<p class="mt-2 rounded-lg bg-slate-50 border p-2 font-mono text-xs overflow-x-auto">${arithmetic}</p>`:''}</div></div></section>`; }
+
+    // McCabe–Thiele
+    function qEqIntersection(zf,q,a){
+      if(Math.abs(q-1)<1e-7) return {x:zf,y:eqY(zf,a)};
+      const qy=x=>q/(q-1)*x-zf/(q-1), f=x=>eqY(x,a)-qy(x);
+      let roots=[], px=0, pf=f(0);
+      for(let i=1;i<=1000;i++){const x=i/1000, fx=f(x); if(Number.isFinite(fx)&&Number.isFinite(pf)&&fx*pf<=0){let lo=px,hi=x;for(let k=0;k<70;k++){const m=(lo+hi)/2;if(f(lo)*f(m)<=0)hi=m;else lo=m;}const r=(lo+hi)/2;if(!roots.some(z=>Math.abs(z-r)<1e-4))roots.push(r);}px=x;pf=fx;}
+      const valid=roots.filter(x=>x>=0&&x<=1).sort((x1,x2)=>Math.abs(x1-zf)-Math.abs(x2-zf));
+      const x=valid.length?valid[0]:zf; return {x,y:eqY(x,a)};
+    }
+    function calcM1(){
+      const zf=number('m1_zf'),xd=number('m1_xd'),xb=number('m1_xb'),q=number('m1_q'),a=number('m1_alpha'),eff=number('m1_eff');
+      $('m1_q_label').textContent=qLabel(q);
+      if(!(0<xb&&xb<zf&&zf<xd&&xd<1&&a>1&&eff>0&&eff<=1)){setStatus('m1_status','Requiere 0 < xB < zF < xD < 1, α > 1 y 0 < E ≤ 1.','error'); return;}
+      const pinch=qEqIntersection(zf,q,a); const den=xd-pinch.x; const slopeMin=Math.abs(den)<1e-10?NaN:(xd-pinch.y)/den; let Rmin=slopeMin/(1-slopeMin);
+      if(!Number.isFinite(Rmin)||Rmin<0) Rmin=0;
+      const mode=$('m1_rmode').value, spec=number('m1_R'); const R=mode==='multiple'?spec*Rmin:spec;
+      $('m1_r_title').innerHTML=mode==='multiple'?'Multiplicador, k':'Relación de reflujo, R';
+      if(!(R>Rmin+1e-8)){setStatus('m1_status',`R debe ser mayor que Rmín = ${fmt(Rmin,4)} para evitar el pinzamiento.`,'warn');}
+      else setStatus('m1_status','Convergencia alcanzada; balances y geometría físicamente consistentes.','ok');
+      const mr=R/(R+1), br=xd/(R+1), rol=x=>mr*x+br;
+      let xInt,yInt;
+      if(Math.abs(q-1)<1e-7){xInt=zf;yInt=rol(zf);} else {const mq=q/(q-1),bq=-zf/(q-1);xInt=(bq-br)/(mr-mq);yInt=rol(xInt);}
+      const ms=(yInt-xb)/(xInt-xb), bs=xb-ms*xb, sol=x=>ms*x+bs;
+      const stages=[], stair=[{x:xd,y:xd}], maxStages=200; let y=xd, xPrev=xd, feedStage=null, N=0, stalled=false;
+      for(let i=1;i<=maxStages;i++){
+        const xeq=eqX(y,a); if(!Number.isFinite(xeq)){stalled=true;break;}
+        let fraction=1; if(xeq<=xb && xPrev>xb) fraction=clamp((xPrev-xb)/(xPrev-xeq),0,1);
+        const xdraw=xeq<=xb?xb:xeq; stair.push({x:xdraw,y});
+        const section=xdraw>=xInt?'Rectificación':'Agotamiento'; if(section==='Agotamiento'&&feedStage===null)feedStage=i;
+        const yop=section==='Rectificación'?rol(xdraw):sol(xdraw); stair.push({x:xdraw,y:yop});
+        stages.push({n:i,x:xdraw,y,section,fraction}); N+=(xeq<=xb?fraction:1);
+        if(xeq<=xb)break;
+        if(Math.abs(xeq-xPrev)<1e-9){stalled=true;break;} xPrev=xeq;y=yop;
+        if(i===maxStages)stalled=true;
+      }
+      if(stalled||!Number.isFinite(N)||N<=0){setStatus('m1_status','No se alcanza xB: aumente R o revise la separación solicitada.','warn');}
+      const Nreal=N/eff;
+      $('m1_N').textContent=fmt(N,2); $('m1_Nreal').textContent=fmt(Nreal,2); $('m1_Nreal_note').innerHTML=`Diseño: ${Math.ceil(Nreal)} platos enteros`; $('m1_feed').textContent=feedStage??'—'; $('m1_Rmin').textContent=fmt(Rmin,4); $('m1_Ractual').textContent=`R operativo ${fmt(R,4)}`; $('m1_rows').textContent=`${stages.length} filas`;
+      $('m1_table').innerHTML=stages.map(s=>`<tr><td>${s.n}</td><td>${fmt(s.x,6)}</td><td>${fmt(s.y,6)}</td><td class="text-left">${s.section}</td><td>${fmt(s.fraction,3)}</td></tr>`).join('');
+      const diag=pts(x=>x), eq=pts(x=>eqY(x,a)); const qline=Math.abs(q-1)<1e-7?[{x:zf,y:0},{x:zf,y:1}]:pts(x=>q/(q-1)*x-zf/(q-1)).filter(p=>p.y>=0&&p.y<=1);
+      const rolData=pts(rol,Math.max(0,xInt),xd,60), solData=pts(sol,xb,Math.min(1,xInt),60);
+      const options=chartBase('x — fracción molar en líquido','y — fracción molar en vapor'); options.scales.x.min=0;options.scales.x.max=1;options.scales.y.min=0;options.scales.y.max=1;options.scales.x.ticks.stepSize=.1;options.scales.y.ticks.stepSize=.1;
+      upsertChart('m1','chartM1',{datasets:[lineDS('Diagonal y = x',diag,palette.slate,1,[5,4]),lineDS('Equilibrio VLE',eq,palette.indigo,3),lineDS('q-line',qline,palette.amber,2,[7,4]),lineDS('ROL',rolData,palette.cyan,2),lineDS('SOL',solData,palette.green,2),{...lineDS('Etapas',stair,palette.red,2),pointRadius:1}]},options);
+      pulse('m1_metrics');
+      setMemory(`<div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4"><strong>Resultado:</strong> ${fmt(N,2)} etapas teóricas y ${Math.ceil(Nreal)} platos reales de diseño.</div>`+
+        memoryCard(1,'Equilibrio vapor–líquido','y^*=\\frac{\\alpha x}{1+(\\alpha-1)x}',`α=${fmt(a,4)}; y*(zF)=${fmt(eqY(zf,a),6)}`)+
+        memoryCard(2,'Punto de pinzamiento y reflujo mínimo','R_{min}=\\frac{m_{min}}{1-m_{min}},\\quad m_{min}=\\frac{x_D-y_q}{x_D-x_q}',`(xq,yq)=(${fmt(pinch.x,6)}, ${fmt(pinch.y,6)}); Rmín=${fmt(Rmin,6)}`)+
+        memoryCard(3,'Línea de rectificación','y=\\frac{R}{R+1}x+\\frac{x_D}{R+1}',`y=${fmt(mr,6)}x+${fmt(br,6)}`)+
+        memoryCard(4,'Línea de agotamiento','y=m_Sx+b_S',`Intersección=(${fmt(xInt,6)},${fmt(yInt,6)}); y=${fmt(ms,6)}x+${fmt(bs,6)}`)+
+        memoryCard(5,'Conversión a platos reales','N_{real}=\\frac{N_{teórico}}{E_{MGE}}',`${fmt(N,4)} / ${fmt(eff,4)} = ${fmt(Nreal,4)} → ${Math.ceil(Nreal)} platos`),'m1');
+    }
+
+    // Fenske–Underwood–Gilliland
+    function underwoodTheta(z,a,q){
+      const f=t=>a*z/(a-t)+(1-z)/(1-t)-(1-q); let lo=1+1e-9,hi=a-1e-9;
+      let flo=f(lo),fhi=f(hi); if(!(flo*fhi<0)) return NaN;
+      for(let i=0;i<120;i++){const m=(lo+hi)/2,fm=f(m); if(flo*fm<=0){hi=m;fhi=fm}else{lo=m;flo=fm}} return (lo+hi)/2;
+    }
+    function calcM2(){
+      const xf=number('m2_xf'),xd=number('m2_xd'),xb=number('m2_xb'),a=number('m2_alpha'),q=number('m2_q'),ratio=number('m2_ratio');
+      if(!(0<xb&&xb<xd&&xd<1&&xf>0&&xf<1&&a>1&&ratio>1)){setStatus('m2_status','Compruebe composiciones, α > 1 y R/Rmín > 1.','error');return;}
+      const Nmin=Math.log((xd*(1-xb))/(xb*(1-xd)))/Math.log(a),theta=underwoodTheta(xf,a,q),Rmin=a*xd/(a-theta)+(1-xd)/(1-theta)-1,R=ratio*Rmin;
+      if(![Nmin,theta,Rmin].every(Number.isFinite)||Rmin<0){setStatus('m2_status','Underwood no produjo una raíz física en 1 < θ < α. Revise q y la alimentación.','warn');return;}
+      const X=(R-Rmin)/(R+1),Y=.75*(1-Math.pow(clamp(X,0,1),.566)),N=(Y+Nmin)/(1-Y);
+      $('m2_Nmin').textContent=fmt(Nmin,3);$('m2_theta').textContent=fmt(theta,4);$('m2_Rmin').textContent=fmt(Rmin,4);$('m2_R').textContent=fmt(R,4);$('m2_N').textContent=fmt(N,3);setStatus('m2_status','Raíz de Underwood convergente en el intervalo de componentes clave.','ok');
+      const curve=pts(x=>.75*(1-Math.pow(x,.566)),0,1,121); const options=chartBase('X = (R − Rmín)/(R + 1)','Y = (N − Nmín)/(N + 1)'); options.scales.x.min=0;options.scales.x.max=1;options.scales.y.min=0;options.scales.y.max=.8;
+      upsertChart('m2','chartM2',{datasets:[lineDS('Correlación de Gilliland–Eduljee',curve,palette.indigo,3),{label:'Estado operativo',data:[{x:X,y:Y}],backgroundColor:palette.red,borderColor:'#fff',borderWidth:2,pointRadius:7,pointHoverRadius:9}]},options);
+      setMemory(`<div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4"><strong>Resultado:</strong> N = ${fmt(N,3)} etapas a R = ${fmt(R,4)}.</div>`+
+        memoryCard(1,'Fenske a reflujo total','N_{min}=\\frac{\\ln\\left[\\frac{x_D(1-x_B)}{x_B(1-x_D)}\\right]}{\\ln\\alpha}',`ln[${fmt((xd*(1-xb))/(xb*(1-xd)),5)}] / ln(${fmt(a,4)}) = ${fmt(Nmin,5)}`)+
+        memoryCard(2,'Raíz binaria de Underwood','\\sum_i\\frac{\\alpha_i z_i}{\\alpha_i-\\theta}=1-q',`θ=${fmt(theta,7)}; 1 < θ < ${fmt(a,4)}`)+
+        memoryCard(3,'Reflujo mínimo','R_{min}+1=\\sum_i\\frac{\\alpha_i x_{D,i}}{\\alpha_i-\\theta}',`Rmín=${fmt(Rmin,6)}; R=${fmt(ratio,4)}·Rmín=${fmt(R,6)}`)+
+        memoryCard(4,'Gilliland–Eduljee','X=\\frac{R-R_{min}}{R+1},\\;Y=0.75(1-X^{0.566}),\\;N=\\frac{Y+N_{min}}{1-Y}',`X=${fmt(X,6)}; Y=${fmt(Y,6)}; N=${fmt(N,6)}`),'m2');
+    }
+
+    // Kremser
+    function calcM3(){
+      const Y1=number('m3_Y1'),Y2=number('m3_Y2'),X2=number('m3_X2'),m=number('m3_m'),G=number('m3_G'),L=number('m3_L'); const A=L/(m*G),d1=Y1-m*X2,d2=Y2-m*X2,ratio=d1/d2;
+      if(!(Y1>Y2&&m>0&&G>0&&L>0&&d1>0&&d2>0)){setStatus('m3_status','Se requiere Y1 > Y2 > m·X2, m > 0 y caudales positivos.','error');return;}
+      let N,arg; if(Math.abs(A-1)<1e-6){N=ratio-1;arg=1;} else {arg=ratio*(1-1/A)+1/A;N=Math.log(arg)/Math.log(A);}
+      if(!(N>0&&Number.isFinite(N)&&arg>0)){setStatus('m3_status','La combinación no genera un número físico de etapas con Kremser.','warn');return;}
+      const rec=100*(Y1-Y2)/Y1,X1=X2+(G/L)*(Y1-Y2),op=x=>Y2+(L/G)*(x-X2),xmax=Math.max(X1,Y1/m,X2)*1.12;
+      $('m3_A').textContent=fmt(A,4);$('m3_N').textContent=fmt(N,3);$('m3_Nceil').textContent=Math.ceil(N);$('m3_rec').textContent=fmt(rec,2)+'%';setStatus('m3_status',Math.abs(A-1)<.05?'Evaluación estable cerca de A = 1 mediante el límite matemático.':'Solución de Kremser físicamente válida.','ok');
+      const options=chartBase('X — razón molar en líquido','Y — razón molar en gas'); options.scales.x.min=0;options.scales.y.min=0;
+      const stages=[]; let x=X2,y=Y2; stages.push({x,y}); for(let i=0;i<Math.min(Math.ceil(N),35);i++){const xeq=y/m;stages.push({x:xeq,y});const yop=op(xeq);stages.push({x:xeq,y:yop});x=xeq;y=yop;if(y>=Y1)break;}
+      upsertChart('m3','chartM3',{datasets:[lineDS('Equilibrio Y*=mX',pts(x=>m*x,0,xmax,80),palette.indigo,3),lineDS('Línea de operación',pts(op,X2,xmax,80),palette.cyan,2),lineDS('Etapas ideales',stages,palette.red,2)]},options);
+      setMemory(`<div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4"><strong>Resultado:</strong> ${fmt(N,3)} etapas teóricas; diseño entero: ${Math.ceil(N)}.</div>`+
+        memoryCard(1,'Factor de absorción','A=\\frac{L_s}{mG_s}',`${fmt(L,4)} / (${fmt(m,4)}·${fmt(G,4)}) = ${fmt(A,6)}`)+
+        memoryCard(2,'Relación de fuerzas impulsoras','\\Phi=\\frac{Y_1-mX_2}{Y_2-mX_2}',`(${fmt(Y1,5)}−${fmt(m*X2,5)}) / (${fmt(Y2,5)}−${fmt(m*X2,5)}) = ${fmt(ratio,6)}`)+
+        memoryCard(3,'Número de etapas Kremser','N=\\frac{\\ln\\left[\\Phi(1-1/A)+1/A\\right]}{\\ln A}',Math.abs(A-1)<1e-6?`Límite A→1: N=Φ−1=${fmt(N,6)}`:`argumento=${fmt(arg,7)}; N=${fmt(N,6)}`)+
+        memoryCard(4,'Recuperación','\\eta=100\\frac{Y_1-Y_2}{Y_1}',`η=${fmt(rec,4)} %; X1=${fmt(X1,6)}`),'m3');
+    }
+
+    // Mass transfer coefficients
+    function shValue(geo,Re,Sc){ if(geo==='tube')return .023*Math.pow(Re,.83)*Math.pow(Sc,.33); if(geo==='sphere')return 2+.552*Math.sqrt(Re)*Math.pow(Sc,.33); return 2+1.1*Math.pow(Re,.6)*Math.pow(Sc,1/3); }
+    function calcM4(){
+      const geo=$('m4_geo').value,rho=number('m4_rho'),mu=number('m4_mu'),D=number('m4_D'),u=number('m4_u'),d=number('m4_d'); if(!(rho>0&&mu>0&&D>0&&u>=0&&d>0)){setStatus('m4_status','Todas las propiedades deben ser positivas; u puede ser cero.','error');return;}
+      const Re=rho*u*d/mu,Sc=mu/(rho*D),Sh=shValue(geo,Re,Sc),k=Sh*D/d; $('m4_Re').textContent=sci(Re);$('m4_Sc').textContent=sci(Sc);$('m4_Sh').textContent=sci(Sh);$('m4_k').textContent=sci(k);$('m4_ms').textContent=sci(k);$('m4_cms').textContent=sci(k*100);$('m4_fth').textContent=sci(k*11811.023622);
+      const corr=geo==='tube'?'Gilliland–Sherwood: Sh=0.023 Re⁰·⁸³ Sc⁰·³³':geo==='sphere'?'Frössling: Sh=2+0.552 Re⁰·⁵ Sc⁰·³³':'Wakao–Funazkri: Sh=2+1.1 Re⁰·⁶ Sc¹ᐟ³'; const regime=Re<1?'difusivo / creeping':Re<2300?'laminar o transición según geometría':'inercial';setStatus('m4_status',`${corr}. Régimen indicativo: ${regime}.`,'ok');
+      const umax=Math.max(u*2,1),data=pts(vel=>{const re=rho*vel*d/mu;return shValue(geo,re,Sc)*D/d},0,umax,100),options=chartBase('Velocidad superficial u (m/s)','k_c (m/s)');options.scales.y.min=0;
+      upsertChart('m4','chartM4',{datasets:[lineDS('Sensibilidad k_c(u)',data,palette.indigo,3),{label:'Condición actual',data:[{x:u,y:k}],backgroundColor:palette.red,pointRadius:7}]},options);
+      setMemory(`<div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4"><strong>Correlación:</strong> ${corr}</div>`+
+        memoryCard(1,'Reynolds','Re=\\frac{\\rho u d}{\\mu}',`${fmt(rho,5)}·${fmt(u,5)}·${fmt(d,6)} / ${sci(mu)} = ${sci(Re)}`)+
+        memoryCard(2,'Schmidt','Sc=\\frac{\\mu}{\\rho D_{AB}}',`${sci(mu)} / (${fmt(rho,5)}·${sci(D)}) = ${sci(Sc)}`)+
+        memoryCard(3,'Sherwood','Sh=f(Re,Sc)',`Sh=${sci(Sh)}`)+
+        memoryCard(4,'Coeficiente convectivo','k_c=\\frac{ShD_{AB}}{d}',`${sci(Sh)}·${sci(D)} / ${sci(d)} = ${sci(k)} m/s`),'m4');
+    }
+
+    // LLE
+    function calcM5(){
+      const F=number('m5_F'),xF=number('m5_xF'),S=number('m5_S'),yS=number('m5_yS'),K=number('m5_K'),xR=number('m5_xR'); if(!(F>0&&S>0&&K>0&&xF>xR&&xR>=0&&xF<1&&yS>=0)){setStatus('m5_status','Se requiere xF > xR ≥ 0, flujos positivos y K > 0.','error');return;}
+      const E=K*S/F,op=x=>F/S*(x-xR)+yS,eq=x=>K*x,steps=[{x:xR,y:yS}],rows=[];let x=xR,y=yS,N=0,stalled=false;
+      for(let i=1;i<=100;i++){
+        const yeq=eq(x);steps.push({x,y:yeq});const xnext=xR+S/F*(yeq-yS);let frac=1;if(xnext>=xF&&x<xF)frac=clamp((xF-x)/(xnext-x),0,1);steps.push({x:Math.min(xnext,xF),y:yeq});rows.push({i,x,y:yeq,xnext:Math.min(xnext,xF)});N+=xnext>=xF?frac:1;if(xnext>=xF)break;if(xnext<=x+1e-10){stalled=true;break;}x=xnext;y=yeq;if(i===100)stalled=true;
+      }
+      if(stalled){setStatus('m5_status','La extracción objetivo no converge: aumente S, K o relaje xR.','warn');$('m5_N').textContent='No converge';return;}
+      const rec=100*(xF-xR)/xF,xmax=Math.max(xF,...rows.map(r=>r.xnext))*1.08,ymax=Math.max(eq(xmax),op(xmax));$('m5_E').textContent=fmt(E,4);$('m5_N').textContent=fmt(N,3);$('m5_Nceil').textContent=Math.ceil(N);$('m5_rec').textContent=fmt(rec,2)+'%';$('m5_table').innerHTML=rows.map(r=>`<tr><td>${r.i}</td><td>${fmt(r.x,6)}</td><td>${fmt(r.y,6)}</td><td>${fmt(r.xnext,6)}</td></tr>`).join('');setStatus('m5_status','Escalonado contracorriente convergente en coordenadas rectangulares de Jänecke.','ok');
+      const ties=[]; rows.slice(0,12).forEach(r=>{ties.push({x:r.x,y:r.y},{x:r.x,y:op(r.x)},{x:NaN,y:NaN});}); const options=chartBase('x — soluto en fase rafinada','y — soluto en fase extracto');options.scales.x.min=0;options.scales.y.min=0;options.scales.x.max=xmax;options.scales.y.max=ymax*1.05;
+      upsertChart('m5','chartM5',{datasets:[lineDS('Equilibrio y*=Kx',pts(eq,0,xmax,100),palette.indigo,3),lineDS('Línea de operación',pts(op,xR,xmax,100),palette.cyan,2),lineDS('Escalones / tie-lines',steps,palette.red,2),{...lineDS('Líneas de reparto',ties,palette.light,1,[3,3]),spanGaps:false}]},options);
+      setMemory(`<div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4"><strong>Resultado:</strong> ${fmt(N,3)} etapas teóricas; extracción de ${fmt(rec,2)}%.</div>`+
+        memoryCard(1,'Equilibrio de distribución','y^*=Kx',`y*=${fmt(K,4)}x`)+
+        memoryCard(2,'Factor de extracción','E=K\\frac{S}{F}',`${fmt(K,4)}·${fmt(S,4)}/${fmt(F,4)}=${fmt(E,6)}`)+
+        memoryCard(3,'Línea de operación','y_{n+1}=\\frac{F}{S}(x_n-x_R)+y_S',`y=${fmt(F/S,6)}(x−${fmt(xR,5)})+${fmt(yS,5)}`)+
+        memoryCard(4,'Escalonado contracorriente','y_n=Kx_n,\\quad x_{n+1}=x_R+\\frac{S}{F}(y_n-y_S)',`N=${fmt(N,6)}; diseño=${Math.ceil(N)} etapas`),'m5');
+    }
+
+    // Psychrometrics
+    function pws(T){ return Math.pow(10,8.07131-1730.63/(233.426+T))*0.133322368; }
+    function dewPoint(pv){ const mm=pv/0.133322368,log=Math.log10(mm);return 1730.63/(8.07131-log)-233.426; }
+    function humRatio(pv,P){ return .621945*pv/(P-pv); }
+    function calcM6(){
+      const mode=$('m6_mode').value,T=number('m6_Tdb'),Twb=number('m6_Twb'),RHin=number('m6_RH'),P=number('m6_P');$('m6_twb_wrap').classList.toggle('hidden',mode!=='twb');$('m6_rh_wrap').classList.toggle('hidden',mode!=='rh');
+      if(!(P>0&&T>-40&&T<110)){setStatus('m6_status','Use P > 0 y temperatura dentro del rango de aplicación.','error');return;} if(mode==='twb'&&Twb>T){setStatus('m6_status','El bulbo húmedo no puede exceder al bulbo seco.','error');return;}
+      const ps=pws(T); let pv,RH; if(mode==='rh'){RH=RHin/100;pv=RH*ps;}else{const gamma=.00066*(1+.00115*Twb);pv=pws(Twb)-gamma*P*(T-Twb);RH=pv/ps;}
+      if(!(pv>0&&pv<Math.min(P,ps*1.001)&&RH>0&&RH<=1.01)){setStatus('m6_status','El estado calculado queda fuera de la región física no saturada.','warn');return;}
+      RH=clamp(RH,0,1);const W=humRatio(pv,P),Tdp=dewPoint(pv),H=1.006*T+W*(2501+1.86*T),v=.287042*(T+273.15)*(1+1.607858*W)/P;
+      $('m6_W').textContent=fmt(W,5);$('m6_RHout').textContent=fmt(RH*100,2)+'%';$('m6_Tdp').textContent=fmt(Tdp,2)+' °C';$('m6_H').textContent=fmt(H,2);$('m6_v').textContent=fmt(v,4);setStatus('m6_status',T>100||T<1?'Antoine está fuera de su intervalo recomendado de 1–100 °C.':'Estado psicrométrico físicamente consistente.','ok');
+      const datasets=[]; for(let r=.1;r<=1.001;r+=.1){datasets.push(lineDS(`${Math.round(r*100)}% RH`,pts(temp=>{const p=r*pws(temp);return p<P?1000*humRatio(p,P):NaN},0,55,111),r>.99?palette.indigo:'#94a3b8',r>.99?2:1,r>.99?[]:[4,3]));}
+      [20,40,60,80,100,120].forEach(h=>datasets.push(lineDS(`h=${h}`,pts(temp=>1000*(h-1.006*temp)/(2501+1.86*temp),0,55,111).filter(p=>p.y>=0&&p.y<=1000*humRatio(Math.min(pws(p.x),P*.99),P)),palette.amber,1,[2,5])));
+      [10,20,30,40].forEach(tw=>{const line=pts(temp=>{if(temp<tw)return NaN;const gamma=.00066*(1+.00115*tw),pp=pws(tw)-gamma*P*(temp-tw);return pp>0?1000*humRatio(pp,P):NaN},tw,55,80);datasets.push(lineDS(`Twb ${tw}°C`,line,palette.cyan,1,[7,4]));});
+      datasets.push({label:'Estado actual',data:[{x:T,y:W*1000}],backgroundColor:palette.red,borderColor:'#fff',borderWidth:3,pointRadius:8,pointHoverRadius:10,order:-1});const options=chartBase('Temperatura de bulbo seco (°C)','Humedad Y (g H₂O/kg aire seco)');options.scales.x.min=0;options.scales.x.max=55;options.scales.y.min=0;options.scales.y.max=40;options.plugins.legend.labels.filter=item=>item.text.includes('% RH')||item.text==='Estado actual';
+      upsertChart('m6','chartM6',{datasets},options);
+      setMemory(`<div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4"><strong>Estado:</strong> Tdb=${fmt(T,2)} °C, RH=${fmt(RH*100,2)}%, Y=${fmt(W,6)}.</div>`+
+        memoryCard(1,'Presión de saturación · Antoine','\\log_{10}P_{ws}(mmHg)=8.07131-\\frac{1730.63}{233.426+T}',`Pws(${fmt(T,2)}°C)=${fmt(ps,5)} kPa; Pv=${fmt(pv,5)} kPa`)+
+        memoryCard(2,'Humedad absoluta','Y=0.621945\\frac{P_v}{P-P_v}',`Y=${fmt(W,8)} kg/kg aire seco`)+
+        memoryCard(3,'Punto de rocío','T_{dp}=\\frac{1730.63}{8.07131-\\log_{10}(P_v/0.133322)}-233.426',`Tdp=${fmt(Tdp,5)} °C`)+
+        memoryCard(4,'Entalpía','H=1.006T_{db}+Y(2501+1.86T_{db})',`H=${fmt(H,5)} kJ/kg aire seco`)+
+        memoryCard(5,'Volumen específico','v=\\frac{0.287042(T_{db}+273.15)(1+1.607858Y)}{P}',`v=${fmt(v,6)} m³/kg aire seco`),'m6');
+    }
+
+    // Navigation, presets and export
+    const calcs={m1:calcM1,m2:calcM2,m3:calcM3,m4:calcM4,m5:calcM5,m6:calcM6};
+    document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.module').forEach(m=>m.classList.remove('active'));btn.classList.add('active');activeModule=btn.dataset.module;$(activeModule).classList.add('active');$('memoryContent').innerHTML=memories[activeModule]||'<p>Modifique un parámetro para generar la memoria.</p>';refreshMath();setTimeout(()=>{charts[activeModule]?.resize();},50);window.scrollTo({top:0,behavior:'smooth'});}));
+    $('m1_rmode').addEventListener('change',calcM1);$('m4_geo').addEventListener('change',calcM4);$('m6_mode').addEventListener('change',calcM6);
+    bindPairs('m1_',['zf','xd','xb','q','alpha','R','eff'],calcM1);bindPairs('m2_',['xf','xd','xb','alpha','q','ratio'],calcM2);bindPairs('m3_',['Y1','Y2','X2','m','G','L'],calcM3);bindPairs('m4_',['rho','mu','D','u','d'],calcM4);bindPairs('m5_',['F','xF','S','yS','K','xR'],calcM5);bindPairs('m6_',['Tdb','Twb','RH','P'],calcM6);
+    function values(set){Object.entries(set).forEach(([id,v])=>{const el=$(id);el.value=v;const r=$(id+'_r');if(r)r.value=v;});}
+    $('presetM1').addEventListener('click',()=>{values({m1_zf:.5,m1_xd:.95,m1_xb:.05,m1_q:1,m1_alpha:2.47,m1_R:2.5,m1_eff:.7});$('m1_rmode').value='direct';calcM1();});
+    $('presetM3').addEventListener('click',()=>{values({m3_Y1:.08,m3_Y2:.005,m3_X2:0,m3_m:1,m3_G:100,m3_L:140});calcM3();});
+    $('presetM6').addEventListener('click',()=>{values({m6_Tdb:35,m6_Twb:24,m6_P:101.325});$('m6_mode').value='twb';calcM6();});
+    const drawer=$('memoryDrawer'),backdrop=$('memoryBackdrop');function openMemory(){drawer.classList.add('open');backdrop.classList.add('open');drawer.setAttribute('aria-hidden','false');$('memoryContent').innerHTML=memories[activeModule]||'';refreshMath();}function closeMemory(){drawer.classList.remove('open');backdrop.classList.remove('open');drawer.setAttribute('aria-hidden','true');}
+    $('memoryToggle').addEventListener('click',openMemory);$('memoryClose').addEventListener('click',closeMemory);backdrop.addEventListener('click',closeMemory);document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMemory();$('pdfModal').classList.add('hidden');$('pdfModal').classList.remove('flex');}});
+    let pdfTimer=null;
+    $('pdfButton').addEventListener('click',()=>{const modal=$('pdfModal');modal.classList.remove('hidden');modal.classList.add('flex');let n=3;$('pdfCountdown').textContent=`Disponible en ${n} segundos…`;clearInterval(pdfTimer);pdfTimer=setInterval(()=>{n--;$('pdfCountdown').textContent=n>0?`Disponible en ${n} segundos…`:'Generando reporte…';if(n<=0){clearInterval(pdfTimer);generatePDF();}},1000);});
+    $('pdfCancel').addEventListener('click',()=>{clearInterval(pdfTimer);$('pdfModal').classList.add('hidden');$('pdfModal').classList.remove('flex');});$('pdfSkip').addEventListener('click',()=>{clearInterval(pdfTimer);generatePDF();});
+    async function generatePDF(){
+      const modal=$('pdfModal');$('pdfCountdown').textContent='Procesando gráfico y memoria…';$('pdfSkip').disabled=true;
+      try{
+        const report=$(activeModule+'_report')||$(activeModule);const canvas=await html2canvas(report,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});const pw=210,ph=297,margin=12,header=22,usableW=pw-2*margin,imgH=canvas.height*usableW/canvas.width;
+        pdf.setFillColor(15,23,42);pdf.rect(0,0,pw,header,'F');pdf.setTextColor(255);pdf.setFont('helvetica','bold');pdf.setFontSize(15);pdf.text('McCabeMassSuite',margin,9);pdf.setFontSize(8);pdf.setFont('helvetica','normal');pdf.text(`Reporte de Ingeniería · ${$(activeModule).dataset.title} · ${new Date().toLocaleString('es-ES')}`,margin,16);
+        const img=canvas.toDataURL('image/jpeg',.92);let y=header+6,remaining=imgH,sourceY=0;const pageAvail=ph-y-margin;
+        if(imgH<=pageAvail)pdf.addImage(img,'JPEG',margin,y,usableW,imgH,'FAST');else{
+          const pxPerMm=canvas.width/usableW;while(remaining>0){const avail=ph-y-margin,sliceHmm=Math.min(avail,remaining),slicePx=Math.round(sliceHmm*pxPerMm),slice=document.createElement('canvas');slice.width=canvas.width;slice.height=slicePx;slice.getContext('2d').drawImage(canvas,0,sourceY,canvas.width,slicePx,0,0,canvas.width,slicePx);pdf.addImage(slice.toDataURL('image/jpeg',.92),'JPEG',margin,y,usableW,sliceHmm,'FAST');remaining-=sliceHmm;sourceY+=slicePx;if(remaining>0){pdf.addPage();y=12;}}
+        }
+        const pages=pdf.getNumberOfPages();for(let i=1;i<=pages;i++){pdf.setPage(i);pdf.setTextColor(100);pdf.setFontSize(7);pdf.text(`Página ${i} de ${pages} · Cálculo conceptual; requiere validación de ingeniería.`,margin,ph-5);}
+        pdf.save(`McCabeMassSuite_${activeModule}_${new Date().toISOString().slice(0,10)}.pdf`);
+      }catch(err){alert('No fue posible generar el PDF. Verifique que las bibliotecas CDN se hayan cargado.');console.error(err);}finally{$('pdfSkip').disabled=false;modal.classList.add('hidden');modal.classList.remove('flex');}
+    }
+
+    Object.values(calcs).forEach(fn=>fn());
+  })();
+  </script>
+</body>
+</html>
